@@ -1,0 +1,76 @@
+# Structure learning algorithm configurations
+
+algorithms:
+  pc:
+    name: "PC (Peter-Clark)"
+    library: "causal-learn"
+    requires_gpu: false
+    default_params:
+      alpha: 0.05  # Significance level for independence tests
+      indep_test: "fisherz"  # Fisher's z-test for continuous, chi-square for discrete
+      stable: true
+      max_cond_vars: -1  # -1 means unlimited
+    tuning_params:
+      alpha: [0.01, 0.05, 0.1]
+      indep_test: ["fisherz", "chisq", "gsq"]
+
+  ges:
+    name: "GES (Greedy Equivalence Search)"
+    library: "causal-learn"
+    requires_gpu: false
+    default_params:
+      score_func: "local_score_BIC"
+      maxP: null  # Maximum number of parents
+      parameters: null
+    tuning_params:
+      score_func: ["local_score_BIC", "local_score_BDeu"]
+
+  notears:
+    name: "NOTEARS"
+    library: "custom"  # Will implement using PyTorch
+    requires_gpu: true  # Can use GPU for acceleration
+    default_params:
+      lambda1: 0.1  # L1 regularization
+      lambda2: 0.1  # L2 regularization
+      max_iter: 100
+      h_tol: 1e-8  # DAG constraint tolerance
+      w_threshold: 0.3  # Edge weight threshold
+      loss_type: "l2"
+    tuning_params:
+      lambda1: [0.01, 0.1, 0.5]
+      lambda2: [0.01, 0.1, 0.5]
+      w_threshold: [0.1, 0.3, 0.5]
+
+  fci:
+    name: "FCI (Fast Causal Inference)"
+    library: "causal-learn"
+    requires_gpu: false
+    default_params:
+      alpha: 0.05
+      indep_test: "fisherz"
+      stable: true
+      max_path_length: -1  # -1 means unlimited
+    tuning_params:
+      alpha: [0.01, 0.05, 0.1]
+      indep_test: ["fisherz", "chisq", "gsq"]
+
+  lingam:
+    name: "LiNGAM (Linear Non-Gaussian Acyclic Model)"
+    library: "lingam"
+    requires_gpu: false
+    default_params:
+      measure: "pwling"  # Pairwise LiNGAM
+      random_state: 42
+    tuning_params:
+      measure: ["pwling", "kernel"]
+
+# General structure learning settings
+structure_learning:
+  output_format: "adjacency_matrix"  # Options: adjacency_matrix, edge_list, networkx
+  save_visualizations: true
+  compare_with_ground_truth: true
+  metrics:
+    - "shd"  # Structural Hamming Distance
+    - "f1"
+    - "precision"
+    - "recall"

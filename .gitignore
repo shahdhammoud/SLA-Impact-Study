@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data and outputs (excluding placeholders)
+outputs/models/*
+!outputs/models/.gitkeep
+outputs/synthetic/*
+!outputs/synthetic/.gitkeep
+outputs/structures/*
+!outputs/structures/.gitkeep
+outputs/evaluations/*
+!outputs/evaluations/.gitkeep
+outputs/rankings/*
+!outputs/rankings/.gitkeep
+
+data/preprocessed/*
+!data/preprocessed/.gitkeep
+data/info/*
+!data/info/.gitkeep
+
+# Dataset files (users add their own)
+benchmarks_with_ground_truth/csv/*.csv
+benchmarks_with_ground_truth/txt/*.txt
+!benchmarks_with_ground_truth/csv/.gitkeep
+!benchmarks_with_ground_truth/txt/.gitkeep
+
+# Optuna database
+*.db
+
+# Logs
+*.log
+logs/
+
+# Model checkpoints
+*.pt
+*.pth
+*.pkl
+*.pickle
+
+# Temporary files
+tmp/
+temp/
+.cache/

@@ -1,0 +1,19 @@
+# Dataset configurations
+# Each dataset should have an entry here with metadata
+
+datasets:
+  # Example configuration - users should add their datasets here
+  example_dataset:
+    csv_path: "benchmarks_with_ground_truth/csv/example_dataset.csv"
+    txt_path: "benchmarks_with_ground_truth/txt/example_dataset.txt"
+    description: "Example dataset for testing"
+    target_column: null  # Will be auto-detected as last column if null
+    index_column: null   # Will be auto-detected if null
+
+# General dataset processing settings
+processing:
+  auto_detect_types: true
+  categorical_threshold: 10  # Columns with <= this many unique values treated as categorical
+  missing_value_strategy: "mean"  # Options: mean, median, mode, drop
+  test_size: 0.2
+  random_state: 42
