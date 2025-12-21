@@ -54,7 +54,7 @@ def main():
     _, true_graph = loader.load_dataset(args.dataset)
     
     metrics = compute_graph_metrics(true_graph, learned_graph)
-    logger.info(f"Metrics: SHD={metrics['shd']}, F1={metrics['f1']:.3f}, Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}")
+    logger.info(f"Metrics: SHD={metrics['shd']:.2f}% (absolute: {metrics['shd_absolute']}), F1={metrics['f1']:.3f}, Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}")
     
     os.makedirs(args.output_dir, exist_ok=True)
     structure_file = os.path.join(args.output_dir, f"{args.dataset}_{args.algorithm}_{suffix}.json")
