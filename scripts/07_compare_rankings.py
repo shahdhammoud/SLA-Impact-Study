@@ -11,6 +11,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.evaluation.ranking import RankingComparator
 from src.utils.logging_utils import setup_logger
+from src.utils.visualization_utils import (
+    plot_model_rankings, 
+    plot_ranking_comparison,
+    plot_consensus_ranking
+)
 
 def main():
     parser = argparse.ArgumentParser(description='Compare model rankings')
@@ -71,6 +76,45 @@ def main():
     output_file = os.path.join(args.output_dir, f"{args.dataset}_ranking_comparison.json")
     comparator.save(output_file)
     logger.info(f"\nSaved results to {output_file}")
+    
+    # Generate visualizations
+    logger.info("\nGenerating visualizations...")
+    
+    # Plot overall model rankings across all structures
+    viz_file = os.path.join(args.output_dir, f"{args.dataset}_rankings_overview.png")
+    plot_model_rankings(
+        rankings_dict=comparator.comparisons,
+        save_path=viz_file,
+        title=f"Model Rankings Across Structure Learning Algorithms - {args.dataset}"
+    )
+    
+    # Plot comparison with baseline if baseline exists
+    if args.baseline in comparator.comparisons:
+        baseline_ranking = comparator.comparisons[args.baseline]
+        
+        for struct_name, struct_ranking in comparator.comparisons.items():
+            if struct_name != args.baseline:
+                compare_viz_file = os.path.join(
+                    args.output_dir, 
+                    f"{args.dataset}_ranking_{args.baseline}_vs_{struct_name}.png"
+                )
+                plot_ranking_comparison(
+                    baseline_ranking=baseline_ranking,
+                    comparison_ranking=struct_ranking,
+                    baseline_name=args.baseline,
+                    comparison_name=struct_name,
+                    save_path=compare_viz_file
+                )
+    
+    # Plot consensus ranking
+    consensus_viz_file = os.path.join(args.output_dir, f"{args.dataset}_consensus_ranking.png")
+    plot_consensus_ranking(
+        rankings_dict=comparator.comparisons,
+        consensus_ranking=consensus,
+        save_path=consensus_viz_file
+    )
+    
+    logger.info("\nAll visualizations saved successfully!")
 
 if __name__ == '__main__':
     main()

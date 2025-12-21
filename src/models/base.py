@@ -5,7 +5,7 @@ Base interface for generative models.
 from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import os
 import joblib
 
@@ -26,6 +26,7 @@ class BaseGenerativeModel(ABC):
         self.model = None
         self.is_fitted = False
         self.metadata = {}
+        self.training_losses = []  # Track training losses
     
     @abstractmethod
     def fit(self, data: pd.DataFrame, **kwargs):
@@ -52,6 +53,15 @@ class BaseGenerativeModel(ABC):
         """
         pass
     
+    def get_training_losses(self) -> List[float]:
+        """
+        Get training losses over epochs.
+        
+        Returns:
+            List of training losses
+        """
+        return self.training_losses
+    
     def save(self, filepath: str):
         """
         Save model to file.
@@ -69,7 +79,8 @@ class BaseGenerativeModel(ABC):
             'params': self.params,
             'model': self.model,
             'metadata': self.metadata,
-            'is_fitted': self.is_fitted
+            'is_fitted': self.is_fitted,
+            'training_losses': self.training_losses
         }
         
         joblib.dump(save_dict, filepath)
@@ -88,6 +99,7 @@ class BaseGenerativeModel(ABC):
         self.model = save_dict['model']
         self.metadata = save_dict['metadata']
         self.is_fitted = save_dict['is_fitted']
+        self.training_losses = save_dict.get('training_losses', [])
     
     def get_params(self) -> Dict[str, Any]:
         """
