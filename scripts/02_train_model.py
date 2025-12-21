@@ -19,6 +19,7 @@ from src.models.gmm_wrapper import GMMWrapper
 from src.models.bayesian_network import BayesianNetworkWrapper
 from src.models.tabddpm_wrapper import TabDDPMWrapper
 from src.utils.logging_utils import setup_logger
+from src.utils.visualization_utils import plot_training_loss
 
 
 MODEL_CLASSES = {
@@ -109,6 +110,24 @@ def main():
     model_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}.pkl")
     model.save(model_file)
     logger.info(f"Saved model to {model_file}")
+    
+    # Save and plot training losses
+    training_losses = model.get_training_losses()
+    if training_losses:
+        # Save loss plot
+        loss_plot_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_training_loss.png")
+        plot_training_loss(
+            losses=training_losses,
+            model_name=args.model.upper(),
+            save_path=loss_plot_file,
+            title=f"{args.model.upper()} Training Loss - {args.dataset}"
+        )
+        
+        # Save losses to JSON
+        loss_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_training_losses.json")
+        with open(loss_file, 'w') as f:
+            json.dump({'losses': training_losses}, f, indent=2)
+        logger.info(f"Saved training losses to {loss_file}")
     
     logger.info("Done!")
 

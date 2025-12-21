@@ -84,13 +84,20 @@ class BayesianNetworkWrapper(BaseGenerativeModel):
         self.model = self.bn_model
         self.is_fitted = True
         
+        # Track training progress (structure learning doesn't have typical loss)
+        # We'll store the score as a proxy
+        final_score = scoring.score(learned_structure)
+        self.training_losses = [final_score]
+        
         # Store metadata
         self.metadata = {
             'n_samples': len(data),
             'n_features': len(data.columns),
             'features': list(data.columns),
             'n_edges': len(self.bn_model.edges()),
-            'edges': list(self.bn_model.edges())
+            'edges': list(self.bn_model.edges()),
+            'final_score': final_score,
+            'training_losses': self.training_losses
         }
     
     def sample(self, n_samples: int, **kwargs) -> pd.DataFrame:

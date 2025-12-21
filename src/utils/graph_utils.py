@@ -64,7 +64,7 @@ def graph_to_adjacency_matrix(G: nx.DiGraph,
     return adj_matrix
 
 
-def compute_shd(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> int:
+def compute_shd(G_true: nx.DiGraph, G_learned: nx.DiGraph, return_percentage: bool = True) -> float:
     """
     Compute Structural Hamming Distance between two graphs.
     
@@ -74,9 +74,10 @@ def compute_shd(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> int:
     Args:
         G_true: True causal graph
         G_learned: Learned causal graph
+        return_percentage: If True, return SHD as percentage of possible edges (default: True)
         
     Returns:
-        Structural Hamming Distance
+        Structural Hamming Distance (as percentage if return_percentage=True, otherwise absolute value)
     """
     true_edges = set(G_true.edges())
     learned_edges = set(G_learned.edges())
@@ -97,7 +98,17 @@ def compute_shd(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> int:
     # Reversed edges are counted in both missing and extra, so subtract once
     shd = missing + extra - reversed_edges
     
-    return shd
+    if return_percentage:
+        # Calculate as percentage of possible edges
+        n_nodes = len(G_true.nodes())
+        max_possible_edges = n_nodes * (n_nodes - 1)  # Maximum possible directed edges
+        if max_possible_edges > 0:
+            shd_percentage = (shd / max_possible_edges) * 100.0
+            return shd_percentage
+        else:
+            return 0.0
+    
+    return float(shd)
 
 
 def compute_graph_metrics(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> Dict[str, float]:
@@ -109,7 +120,7 @@ def compute_graph_metrics(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> Dict[str
         G_learned: Learned causal graph
         
     Returns:
-        Dictionary of metrics (SHD, precision, recall, F1)
+        Dictionary of metrics (SHD as percentage, precision, recall, F1)
     """
     true_edges = set(G_true.edges())
     learned_edges = set(G_learned.edges())
@@ -128,11 +139,15 @@ def compute_graph_metrics(G_true: nx.DiGraph, G_learned: nx.DiGraph) -> Dict[str
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     
-    # SHD
-    shd = compute_shd(G_true, G_learned)
+    # SHD as percentage
+    shd_percentage = compute_shd(G_true, G_learned, return_percentage=True)
+    
+    # Also compute absolute SHD for reference
+    shd_absolute = compute_shd(G_true, G_learned, return_percentage=False)
     
     return {
-        'shd': shd,
+        'shd': shd_percentage,  # Now returns percentage
+        'shd_absolute': shd_absolute,  # Keep absolute value for reference
         'precision': precision,
         'recall': recall,
         'f1': f1,
