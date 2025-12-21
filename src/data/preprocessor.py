@@ -1,246 +1,83 @@
-"""
-Data preprocessor with automatic feature type detection.
-
-Handles categorical and continuous features appropriately for downstream models.
-"""
-
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from typing import Dict, List, Tuple, Optional
 import json
 import os
+import pickle # Added for loading transformers
+from sdv.metadata import SingleTableMetadata
+from sklearn.preprocessing import StandardScaler, QuantileTransformer, OrdinalEncoder
 
+class Preprocessor:
+    def __init__(self, dataset, model=None):
+        self.dataset = dataset
+        self.model = model
+        self.data_path = os.path.join('data', 'preprocessed', self.dataset)
+        self.info = self._load_info()
+        
+        self.column_names = self.info.get('column_names', [])
+        self.numerical_features = self.info.get('continuous_features', [])
+        self.categorical_features = self.info.get('categorical_features', [])
 
-class DataPreprocessor:
-    """Preprocess datasets with automatic categorical/continuous detection."""
-    
-    def __init__(self, categorical_threshold: int = 10):
-        """
-        Initialize preprocessor.
-        
-        Args:
-            categorical_threshold: Columns with <= this many unique values
-                                  are treated as categorical
-        """
-        self.categorical_threshold = categorical_threshold
-        self.categorical_features = []
-        self.continuous_features = []
-        self.label_encoders = {}
-        self.scaler = None
-        self.feature_info = {}
-    
-    def detect_feature_types(self, df: pd.DataFrame, 
-                            target_column: Optional[str] = None) -> Dict[str, List[str]]:
-        """
-        Automatically detect categorical and continuous features.
-        
-        Args:
-            df: Input dataframe
-            target_column: Name of target column (defaults to last column)
-            
-        Returns:
-            Dictionary with 'categorical' and 'continuous' feature lists
-        """
-        if target_column is None:
-            target_column = df.columns[-1]
-        
-        # Exclude target from feature detection
-        features = [col for col in df.columns if col != target_column]
-        
-        categorical = []
-        continuous = []
-        
-        for col in features:
-            # Check if already object/string type
-            if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-                categorical.append(col)
-            # Check number of unique values
-            elif df[col].nunique() <= self.categorical_threshold:
-                categorical.append(col)
-            else:
-                continuous.append(col)
-        
-        # Always include target in the appropriate category
-        if df[target_column].dtype == 'object' or df[target_column].dtype.name == 'category':
-            categorical.append(target_column)
-        elif df[target_column].nunique() <= self.categorical_threshold:
-            categorical.append(target_column)
+        self.numerical_transformer = None
+        self.categorical_transformer = {}
+
+        numerical_transformer_path = os.path.join(self.data_path, 'numerical_transformer.pkl')
+        categorical_transformer_path = os.path.join(self.data_path, 'categorical_transformer.pkl')
+
+        if os.path.exists(numerical_transformer_path):
+            with open(numerical_transformer_path, 'rb') as f:
+                self.numerical_transformer = pickle.load(f)
+        if os.path.exists(categorical_transformer_path):
+            with open(categorical_transformer_path, 'rb') as f:
+                self.categorical_transformer = pickle.load(f)
+
+    def _load_info(self):
+        info_path_preprocessed = os.path.join(self.data_path, 'info.json')
+        if os.path.exists(info_path_preprocessed):
+            with open(info_path_preprocessed, 'r') as f:
+                return json.load(f)
         else:
-            continuous.append(target_column)
+            raise FileNotFoundError(f"Info file not found for dataset {self.dataset} at {info_path_preprocessed}")
+
+    def transform(self, df):
+        transformed_df = df.copy()
+
+        if self.numerical_features and self.numerical_transformer:
+            transformed_df[self.numerical_features] = self.numerical_transformer.transform(transformed_df[self.numerical_features])
+
+        if self.categorical_features:
+            for col in self.categorical_features:
+                if col in transformed_df.columns and col in self.categorical_transformer:
+                    transformed_df[col] = self.categorical_transformer[col].transform(transformed_df[[col]]).flatten()
+
+        return transformed_df.to_numpy()
+
+
+    def inverse_transform(self, data, denormalize=True):
+        # FIX START: Convert input numpy array to DataFrame
+        if isinstance(data, np.ndarray):
+            if hasattr(self, 'column_names') and self.column_names and len(self.column_names) == data.shape[1]:
+                df = pd.DataFrame(data, columns=self.column_names)
+            else:
+                # Fallback: create DataFrame without specific column names if metadata is missing or mismatch
+                df = pd.DataFrame(data)
+        else:
+            df = data.copy() # If it's already a DataFrame, just copy it
+        # FIX END
+
+        # Apply inverse transforms for numerical data (denormalize)
+        if denormalize and self.numerical_transformer:
+            # Only attempt if numerical features exist and are present in the DataFrame
+            if self.numerical_features and all(col in df.columns for col in self.numerical_features):
+                df[self.numerical_features] = self.numerical_transformer.inverse_transform(df[self.numerical_features])
+            elif self.numerical_features:
+                print(f"Warning: Some numerical features {self.numerical_features} not found in DataFrame for inverse transform. Skipping numerical inverse transformation.")
+
+        # Apply inverse transforms for categorical data
+        if self.categorical_transformer:
+            for col in self.categorical_features:
+                if col in df.columns and col in self.categorical_transformer:
+                    df[col] = self.categorical_transformer[col].inverse_transform(df[[col]].to_numpy()).flatten()
+                elif col in self.categorical_features:
+                    print(f"Warning: Categorical feature {col} or its transformer not found in DataFrame for inverse transform. Skipping categorical inverse transformation for this column.")
         
-        self.categorical_features = categorical
-        self.continuous_features = continuous
-        
-        return {
-            'categorical': categorical,
-            'continuous': continuous
-        }
-    
-    def fit(self, df: pd.DataFrame, target_column: Optional[str] = None) -> 'DataPreprocessor':
-        """
-        Fit preprocessor to data.
-        
-        Args:
-            df: Input dataframe
-            target_column: Name of target column (defaults to last column)
-            
-        Returns:
-            Self for chaining
-        """
-        # Detect feature types
-        feature_types = self.detect_feature_types(df, target_column)
-        
-        # Fit label encoders for categorical features
-        for col in self.categorical_features:
-            le = LabelEncoder()
-            le.fit(df[col].astype(str))
-            self.label_encoders[col] = le
-            
-            # Store feature info
-            self.feature_info[col] = {
-                'type': 'categorical',
-                'n_categories': len(le.classes_),
-                'categories': le.classes_.tolist()
-            }
-        
-        # Fit scaler for continuous features
-        if self.continuous_features:
-            self.scaler = StandardScaler()
-            self.scaler.fit(df[self.continuous_features])
-            
-            for col in self.continuous_features:
-                self.feature_info[col] = {
-                    'type': 'continuous',
-                    'mean': float(df[col].mean()),
-                    'std': float(df[col].std()),
-                    'min': float(df[col].min()),
-                    'max': float(df[col].max())
-                }
-        
-        return self
-    
-    def transform(self, df: pd.DataFrame, normalize: bool = True) -> pd.DataFrame:
-        """
-        Transform data using fitted preprocessor.
-        
-        Args:
-            df: Input dataframe
-            normalize: Whether to normalize continuous features
-            
-        Returns:
-            Transformed dataframe
-        """
-        df_transformed = df.copy()
-        
-        # Encode categorical features
-        for col in self.categorical_features:
-            if col in df_transformed.columns:
-                df_transformed[col] = self.label_encoders[col].transform(
-                    df_transformed[col].astype(str)
-                )
-        
-        # Normalize continuous features
-        if normalize and self.continuous_features and self.scaler is not None:
-            continuous_cols = [col for col in self.continuous_features if col in df_transformed.columns]
-            if continuous_cols:
-                df_transformed[continuous_cols] = self.scaler.transform(
-                    df_transformed[continuous_cols]
-                )
-        
-        return df_transformed
-    
-    def inverse_transform(self, df: pd.DataFrame, denormalize: bool = True) -> pd.DataFrame:
-        """
-        Inverse transform data back to original format.
-        
-        Args:
-            df: Transformed dataframe
-            denormalize: Whether to denormalize continuous features
-            
-        Returns:
-            Data in original format
-        """
-        df_original = df.copy()
-        
-        # Decode categorical features
-        for col in self.categorical_features:
-            if col in df_original.columns:
-                df_original[col] = self.label_encoders[col].inverse_transform(
-                    df_original[col].astype(int)
-                )
-        
-        # Denormalize continuous features
-        if denormalize and self.continuous_features and self.scaler is not None:
-            continuous_cols = [col for col in self.continuous_features if col in df_original.columns]
-            if continuous_cols:
-                df_original[continuous_cols] = self.scaler.inverse_transform(
-                    df_original[continuous_cols]
-                )
-        
-        return df_original
-    
-    def fit_transform(self, df: pd.DataFrame, target_column: Optional[str] = None,
-                     normalize: bool = True) -> pd.DataFrame:
-        """
-        Fit and transform in one step.
-        
-        Args:
-            df: Input dataframe
-            target_column: Name of target column
-            normalize: Whether to normalize continuous features
-            
-        Returns:
-            Transformed dataframe
-        """
-        self.fit(df, target_column)
-        return self.transform(df, normalize)
-    
-    def save_metadata(self, filepath: str):
-        """
-        Save preprocessor metadata to file.
-        
-        Args:
-            filepath: Path to save metadata JSON
-        """
-        metadata = {
-            'categorical_features': self.categorical_features,
-            'continuous_features': self.continuous_features,
-            'feature_info': self.feature_info,
-            'categorical_threshold': self.categorical_threshold
-        }
-        
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, 'w') as f:
-            json.dump(metadata, f, indent=2)
-    
-    def load_metadata(self, filepath: str):
-        """
-        Load preprocessor metadata from file.
-        
-        Args:
-            filepath: Path to metadata JSON
-        """
-        with open(filepath, 'r') as f:
-            metadata = json.load(f)
-        
-        self.categorical_features = metadata['categorical_features']
-        self.continuous_features = metadata['continuous_features']
-        self.feature_info = metadata['feature_info']
-        self.categorical_threshold = metadata['categorical_threshold']
-    
-    def get_feature_info(self) -> Dict:
-        """
-        Get information about all features.
-        
-        Returns:
-            Dictionary with feature information
-        """
-        return {
-            'n_features': len(self.categorical_features) + len(self.continuous_features),
-            'n_categorical': len(self.categorical_features),
-            'n_continuous': len(self.continuous_features),
-            'categorical_features': self.categorical_features,
-            'continuous_features': self.continuous_features,
-            'feature_info': self.feature_info
-        }
+        return df
