@@ -47,16 +47,39 @@ class GESLearner(BaseStructureLearner):
             Learned causal graph
         """
         # Convert to numpy array
-        X = data.values
+        X = data.values.astype(np.float64)
         node_names = list(data.columns)
         
+        # Check for zero-variance columns and add small noise to prevent singular matrix
+        variances = np.var(X, axis=0)
+        zero_var_cols = np.where(variances < 1e-10)[0]
+        if len(zero_var_cols) > 0:
+            # Add tiny noise to zero-variance columns to prevent singular matrix
+            for col_idx in zero_var_cols:
+                X[:, col_idx] = X[:, col_idx] + np.random.normal(0, 1e-6, size=X.shape[0])
+
         # Run GES algorithm
-        record = ges(
-            X,
-            score_func=self.params['score_func'],
-            maxP=self.params['maxP']
-        )
-        
+        try:
+            record = ges(
+                X,
+                score_func=self.params['score_func'],
+                maxP=self.params['maxP']
+            )
+        except np.linalg.LinAlgError as e:
+            # If still singular, return empty graph
+            print(f"GES encountered singular matrix error: {e}. Returning empty graph.")
+            self.learned_graph = nx.DiGraph()
+            self.learned_graph.add_nodes_from(node_names)
+            self.is_fitted = True
+            self.metadata = {
+                'n_samples': len(data),
+                'n_features': len(node_names),
+                'n_edges': 0,
+                'features': node_names,
+                'error': str(e)
+            }
+            return self.learned_graph
+
         # Convert to NetworkX graph
         self.learned_graph = nx.DiGraph()
         self.learned_graph.add_nodes_from(node_names)

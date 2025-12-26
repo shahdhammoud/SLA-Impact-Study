@@ -168,8 +168,8 @@ def save_graph_visualization(G: nx.DiGraph, filepath: str, title: str = "Causal 
         filepath: Path to save image
         title: Title for the plot
     """
-    plt.figure(figsize=(12, 8))
-    
+    fig, ax = plt.subplots(figsize=(12, 8))
+
     # Use hierarchical layout if possible
     try:
         pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
@@ -177,12 +177,12 @@ def save_graph_visualization(G: nx.DiGraph, filepath: str, title: str = "Causal 
         # Fallback to spring layout
         pos = nx.spring_layout(G, k=2, iterations=50)
     
-    nx.draw(G, pos, with_labels=True, node_color='lightblue', 
+    nx.draw(G, pos, ax=ax, with_labels=True, node_color='lightblue',
             node_size=1500, font_size=10, font_weight='bold',
             arrows=True, arrowsize=20, edge_color='gray', 
             arrowstyle='->', connectionstyle='arc3,rad=0.1')
     
-    plt.title(title, fontsize=14, fontweight='bold')
+    ax.set_title(title, fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.savefig(filepath, dpi=300, bbox_inches='tight')
     plt.close()

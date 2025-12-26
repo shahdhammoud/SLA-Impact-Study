@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Script 7: Compare model rankings across different structures."""
+"""
+Script 7: Compare model rankings using algorithm reliability scores.
+
+Evaluates how reliable different causal discovery algorithms are for
+assessing synthetic data quality.
+"""
 
 import argparse
 import os
@@ -11,110 +16,159 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.evaluation.ranking import RankingComparator
 from src.utils.logging_utils import setup_logger
-from src.utils.visualization_utils import (
-    plot_model_rankings, 
-    plot_ranking_comparison,
-    plot_consensus_ranking
-)
+
 
 def main():
-    parser = argparse.ArgumentParser(description='Compare model rankings')
-    parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--structures', type=str, required=True, help='Comma-separated list of structures')
-    parser.add_argument('--models', type=str, default='ctgan,gmm,bayesian_network', help='Comma-separated list of models')
-    parser.add_argument('--eval-dir', type=str, default='outputs/evaluations')
-    parser.add_argument('--output-dir', type=str, default='outputs/rankings')
-    parser.add_argument('--baseline', type=str, default='ground_truth')
-    
+    parser = argparse.ArgumentParser(description='Compare model rankings using algorithm reliability')
+    parser.add_argument('--dataset', type=str, required=True, help='Dataset name (e.g., asia, alarm)')
+    parser.add_argument('--algorithms', type=str, default='pc,ges,fci,cdnod',
+                       help='Comma-separated list of algorithms (e.g., pc,ges,notears,fci,cdnod)')
+    parser.add_argument('--models', type=str, default='gmm,ctgan,tabddpm',
+                       help='Comma-separated list of models')
+    parser.add_argument('--ground-truth-dir', type=str, default='benchmarks_with_ground_truth/txt',
+                       help='Directory containing ground truth txt files')
+    parser.add_argument('--structures-dir', type=str, default='outputs/structures',
+                       help='Directory containing learned structures')
+    parser.add_argument('--eval-dir', type=str, default='outputs/evaluations',
+                       help='Directory containing evaluation results')
+    parser.add_argument('--output-dir', type=str, default='outputs/rankings',
+                       help='Output directory for rankings and visualizations')
+    parser.add_argument('--visualize', action='store_true', default=True,
+                       help='Generate visualizations')
+
     args = parser.parse_args()
     logger = setup_logger('compare_rankings', console=True)
-    logger.info(f"Comparing rankings for {args.dataset}")
-    
-    structures = args.structures.split(',')
-    models = args.models.split(',')
-    
+
+    logger.info(f"Comparing rankings for dataset: {args.dataset}")
+    logger.info(f"Algorithms: {args.algorithms}")
+    logger.info(f"Models: {args.models}")
+
+    algorithms = [a.strip() for a in args.algorithms.split(',')]
+    models = [m.strip() for m in args.models.split(',')]
+
+    # Initialize comparator
     comparator = RankingComparator()
     
-    for structure in structures:
-        structure = structure.strip()
-        rankings = []
-        
-        for model in models:
-            model = model.strip()
-            eval_file = os.path.join(args.eval_dir, f"{args.dataset}_{model}_{structure}_eval.json")
-            
-            if os.path.exists(eval_file):
-                with open(eval_file, 'r') as f:
-                    results = json.load(f)
-                rankings.append((model, results['quality_score']))
-            else:
-                logger.warning(f"Evaluation file not found: {eval_file}")
-        
-        if rankings:
-            rankings.sort(key=lambda x: x[1], reverse=True)
-            comparator.add_ranking(structure, rankings)
-            logger.info(f"Structure {structure}: {[name for name, _ in rankings]}")
-    
-    if len(comparator.comparisons) < 2:
-        logger.error("Need at least 2 structures to compare")
+    # Load ground truths
+    logger.info("\n📊 Loading ground truth structures...")
+    ground_truth_file = os.path.join(args.ground_truth_dir, f"{args.dataset}.txt")
+
+    if not os.path.exists(ground_truth_file):
+        logger.error(f"Ground truth file not found: {ground_truth_file}")
         sys.exit(1)
-    
-    comparison_results = comparator.compare_rankings(baseline=args.baseline)
-    
-    logger.info(f"\nComparisons against {args.baseline}:")
-    for struct, metrics in comparison_results['comparisons'].items():
-        logger.info(f"\n{struct}:")
-        logger.info(f"  Kendall's tau: {metrics['kendall_tau']:.3f} (p={metrics['kendall_p_value']:.3f})")
-        logger.info(f"  Spearman's rho: {metrics['spearman_rho']:.3f} (p={metrics['spearman_p_value']:.3f})")
-        logger.info(f"  Avg positional diff: {metrics['avg_positional_difference']:.2f}")
-        logger.info(f"  Top model match: {metrics['top_model_match']}")
-    
-    consensus = comparator.get_consensus_ranking()
-    logger.info(f"\nConsensus ranking: {[name for name, _ in consensus]}")
-    
+
+    for algorithm in algorithms:
+        try:
+            comparator.load_ground_truth(algorithm, ground_truth_file)
+        except Exception as e:
+            logger.error(f"Failed to load ground truth for {algorithm}: {e}")
+            continue
+
+    # Load real structures (G_real)
+    logger.info("\n📊 Loading real data structures...")
+    for algorithm in algorithms:
+        real_structure_file = os.path.join(args.structures_dir, f"{args.dataset}_{algorithm}_real.json")
+
+        if os.path.exists(real_structure_file):
+            try:
+                comparator.load_real_structure(algorithm, real_structure_file)
+            except Exception as e:
+                logger.warning(f"Failed to load real structure {algorithm}: {e}")
+        else:
+            logger.warning(f"Real structure not found: {real_structure_file}")
+
+    # Load synthetic structures (G_synthetic)
+    logger.info("\n📊 Loading synthetic data structures...")
+    for model in models:
+        for algorithm in algorithms:
+            synthetic_structure_file = os.path.join(
+                args.structures_dir,
+                f"{args.dataset}_{algorithm}_synthetic_{model}.json"
+            )
+
+            if os.path.exists(synthetic_structure_file):
+                try:
+                    comparator.load_synthetic_structure(model, algorithm, synthetic_structure_file)
+                except Exception as e:
+                    logger.warning(f"Failed to load synthetic structure {model}/{algorithm}: {e}")
+            else:
+                logger.warning(f"Synthetic structure not found: {synthetic_structure_file}")
+
+    # Load CauTabBench scores (optional)
+    logger.info("\n📊 Loading CauTabBench scores...")
+    for model in models:
+        eval_file = os.path.join(args.eval_dir, f"{args.dataset}_{model}_ground_truth_eval.json")
+
+        if os.path.exists(eval_file):
+            try:
+                with open(eval_file, 'r') as f:
+                    eval_results = json.load(f)
+                    cautabench_score = eval_results.get('quality_score', 0.0)
+                    comparator.add_cautabench_score(model, cautabench_score)
+                    logger.info(f"  {model}: {cautabench_score:.4f}")
+            except Exception as e:
+                logger.warning(f"Failed to load CauTabBench score for {model}: {e}")
+
+    # Compute all reliability scores
+    logger.info("\n📊 Computing algorithm reliability scores...")
+    comparator.compute_all_reliability_scores()
+
+    # Display results
+    logger.info("\n" + "="*70)
+    logger.info("ALGORITHM RELIABILITY SCORES")
+    logger.info("="*70)
+
+    for algorithm in algorithms:
+        if algorithm in comparator.reliability_scores:
+            logger.info(f"\n{algorithm.upper()}:")
+            ranking = comparator.rank_models_by_algorithm(algorithm)
+            for rank, (model, score) in enumerate(ranking, 1):
+                logger.info(f"  {rank}. {model}: {score:.2f}%")
+
+    # Algorithm ranking
+    logger.info("\n" + "="*70)
+    logger.info("ALGORITHM RELIABILITY RANKING")
+    logger.info("="*70)
+    algo_ranking = comparator.rank_algorithms_by_reliability()
+    for rank, (algorithm, avg_score) in enumerate(algo_ranking, 1):
+        logger.info(f"{rank}. {algorithm.upper()}: {avg_score:.2f}% (average)")
+
+    # Overall model ranking
+    logger.info("\n" + "="*70)
+    logger.info("OVERALL MODEL RANKING (Average across all algorithms)")
+    logger.info("="*70)
+
+    summary = comparator.summarize()
+    if 'overall_reliability_ranking' in summary['rankings']:
+        overall_ranking = summary['rankings']['overall_reliability_ranking']
+        for rank, (model, score) in enumerate(zip(overall_ranking['order'], overall_ranking['avg_scores']), 1):
+            logger.info(f"{rank}. {model}: {score:.2f}%")
+
+    # CauTabBench ranking
+    if comparator.cautabench_scores:
+        logger.info("\n" + "="*70)
+        logger.info("CAUTABBENCH RANKING")
+        logger.info("="*70)
+        cautabench_ranking = comparator.rank_by_cautabench()
+        for rank, (model, score) in enumerate(cautabench_ranking, 1):
+            logger.info(f"{rank}. {model}: {score:.4f}")
+
+    # Save results
     os.makedirs(args.output_dir, exist_ok=True)
     output_file = os.path.join(args.output_dir, f"{args.dataset}_ranking_comparison.json")
     comparator.save(output_file)
-    logger.info(f"\nSaved results to {output_file}")
-    
+    logger.info(f"\n✅ Results saved to: {output_file}")
+
     # Generate visualizations
-    logger.info("\nGenerating visualizations...")
-    
-    # Plot overall model rankings across all structures
-    viz_file = os.path.join(args.output_dir, f"{args.dataset}_rankings_overview.png")
-    plot_model_rankings(
-        rankings_dict=comparator.comparisons,
-        save_path=viz_file,
-        title=f"Model Rankings Across Structure Learning Algorithms - {args.dataset}"
-    )
-    
-    # Plot comparison with baseline if baseline exists
-    if args.baseline in comparator.comparisons:
-        baseline_ranking = comparator.comparisons[args.baseline]
-        
-        for struct_name, struct_ranking in comparator.comparisons.items():
-            if struct_name != args.baseline:
-                compare_viz_file = os.path.join(
-                    args.output_dir, 
-                    f"{args.dataset}_ranking_{args.baseline}_vs_{struct_name}.png"
-                )
-                plot_ranking_comparison(
-                    baseline_ranking=baseline_ranking,
-                    comparison_ranking=struct_ranking,
-                    baseline_name=args.baseline,
-                    comparison_name=struct_name,
-                    save_path=compare_viz_file
-                )
-    
-    # Plot consensus ranking
-    consensus_viz_file = os.path.join(args.output_dir, f"{args.dataset}_consensus_ranking.png")
-    plot_consensus_ranking(
-        rankings_dict=comparator.comparisons,
-        consensus_ranking=consensus,
-        save_path=consensus_viz_file
-    )
-    
-    logger.info("\nAll visualizations saved successfully!")
+    if args.visualize:
+        logger.info("\n📊 Generating visualizations...")
+        viz_dir = os.path.join(args.output_dir, 'visualizations')
+        comparator.plot_all_visualizations(viz_dir, args.dataset)
+
+    logger.info("\n" + "="*70)
+    logger.info("✅ RANKING COMPARISON COMPLETE!")
+    logger.info("="*70)
+
 
 if __name__ == '__main__':
     main()

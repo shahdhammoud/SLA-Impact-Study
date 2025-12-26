@@ -65,8 +65,8 @@ class OptunaTuner:
             # Sample hyperparameters
             params = self._sample_params(trial, param_space)
             
-            # Train model
             try:
+                # Train model
                 model = self.model_class(**params)
                 
                 if categorical_columns:
@@ -77,10 +77,17 @@ class OptunaTuner:
                 # Generate synthetic data
                 synthetic_data = model.sample(len(val_data))
                 
+                # Debug: print shapes and head
+                print(f"[DEBUG] Real shape: {val_data.shape}, Synthetic shape: {synthetic_data.shape}")
+                print(f"[DEBUG] Real head:\n{val_data.head()}")
+                print(f"[DEBUG] Synthetic head:\n{synthetic_data.head()}")
+
                 # Evaluate using CauTabBench methodology
                 evaluator = CauTabBenchEvaluator()
                 results = evaluator.evaluate(val_data, synthetic_data, causal_graph)
                 
+                print(f"[DEBUG] Evaluation results: {results}")
+
                 # Return metric to optimize
                 return results[self.eval_metric]
                 

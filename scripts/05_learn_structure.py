@@ -13,16 +13,24 @@ from src.structure_learning.ges import GESLearner
 from src.structure_learning.notears import NOTEARSLearner
 from src.structure_learning.fci import FCILearner
 from src.structure_learning.lingam import LiNGAMLearner
+from src.structure_learning.cdnod import CDNODLearner
 from src.data.loader import DataLoader
 from src.utils.graph_utils import compute_graph_metrics, save_graph_visualization
 from src.utils.logging_utils import setup_logger
 
-LEARNERS = {'pc': PCLearner, 'ges': GESLearner, 'notears': NOTEARSLearner, 'fci': FCILearner, 'lingam': LiNGAMLearner}
+LEARNERS = {
+    'pc': PCLearner,
+    'ges': GESLearner,
+    'notears': NOTEARSLearner,
+    'fci': FCILearner,
+    'lingam': LiNGAMLearner,
+    'cdnod': CDNODLearner
+}
 
 def main():
     parser = argparse.ArgumentParser(description='Learn causal structure')
     parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--algorithm', type=str, required=True, choices=['pc', 'ges', 'notears', 'fci', 'lingam'])
+    parser.add_argument('--algorithm', type=str, required=True, choices=['pc', 'ges', 'notears', 'fci', 'lingam', 'cdnod'])
     parser.add_argument('--data-type', type=str, required=True, choices=['real', 'synthetic'])
     parser.add_argument('--model', type=str, default=None, help='Model name if data_type is synthetic')
     parser.add_argument('--data-dir', type=str, default='data/preprocessed')

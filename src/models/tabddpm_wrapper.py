@@ -296,3 +296,71 @@ class TabDDPMWrapper(BaseGenerativeModel):
     def get_training_losses(self) -> List[float]:
         """Get training losses over epochs."""
         return self.training_losses
+
+    def save(self, path: str):
+        """
+        Save TabDDPM model to file.
+
+        Args:
+            path: Path to save model
+        """
+        import pickle
+
+        save_dict = {
+            'model_state_dict': self.diffusion_model.state_dict() if self.diffusion_model else None,
+            'feature_names': self.feature_names,
+            'data_mean': self.data_mean,
+            'data_std': self.data_std,
+            'params': self.params,
+            'metadata': self.metadata,
+            'training_losses': self.training_losses,
+            'betas': self.betas,
+            'alphas': self.alphas,
+            'alphas_cumprod': self.alphas_cumprod,
+            'sqrt_alphas_cumprod': self.sqrt_alphas_cumprod,
+            'sqrt_one_minus_alphas_cumprod': self.sqrt_one_minus_alphas_cumprod
+        }
+
+        with open(path, 'wb') as f:
+            pickle.dump(save_dict, f)
+
+    def load(self, path: str):
+        """
+        Load TabDDPM model from file.
+
+        Args:
+            path: Path to load model from
+        """
+        import pickle
+
+        with open(path, 'rb') as f:
+            save_dict = pickle.load(f)
+
+        self.feature_names = save_dict['feature_names']
+        self.data_mean = save_dict['data_mean']
+        self.data_std = save_dict['data_std']
+        self.params = save_dict['params']
+        self.metadata = save_dict['metadata']
+        self.training_losses = save_dict['training_losses']
+        self.betas = save_dict['betas']
+        self.alphas = save_dict['alphas']
+        self.alphas_cumprod = save_dict['alphas_cumprod']
+        self.sqrt_alphas_cumprod = save_dict['sqrt_alphas_cumprod']
+        self.sqrt_one_minus_alphas_cumprod = save_dict['sqrt_one_minus_alphas_cumprod']
+
+        # Recreate model
+        input_dim = len(self.feature_names)
+        self.diffusion_model = MLPDiffusion(
+            input_dim=input_dim,
+            hidden_dim=self.params['hidden_dim'],
+            num_layers=self.params['num_layers'],
+            dropout=self.params['dropout'],
+            timesteps=self.params['num_timesteps']
+        ).to(self.device)
+
+        # Load state dict
+        if save_dict['model_state_dict']:
+            self.diffusion_model.load_state_dict(save_dict['model_state_dict'])
+
+        self.model = self.diffusion_model
+        self.is_fitted = True

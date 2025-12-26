@@ -47,7 +47,11 @@ def main():
                        help='Use best parameters from tuning')
     parser.add_argument('--params-file', type=str, default=None,
                        help='Path to custom parameters JSON file')
-    
+    parser.add_argument('--epochs', type=int, default=None,
+                       help='Override number of epochs (for CTGAN/TabDDPM)')
+    parser.add_argument('--batch-size', type=int, default=None,
+                       help='Override batch size')
+
     args = parser.parse_args()
     
     logger = setup_logger('train', console=True)
@@ -78,6 +82,14 @@ def main():
         params = model_config['default_params']
         logger.info("Using default parameters")
     
+    # Apply command-line overrides
+    if args.epochs is not None:
+        params['epochs'] = args.epochs
+        logger.info(f"Overriding epochs: {args.epochs}")
+    if args.batch_size is not None:
+        params['batch_size'] = args.batch_size
+        logger.info(f"Overriding batch_size: {args.batch_size}")
+
     # Load preprocessed data
     logger.info("Loading preprocessed data...")
     data_file = os.path.join(args.data_dir, f"{args.dataset}_preprocessed.csv")
@@ -113,7 +125,21 @@ def main():
     
     # Save and plot training losses
     training_losses = model.get_training_losses()
-    if training_losses:
+    if args.model == 'ctgan' and isinstance(training_losses, dict):
+        from src.utils.visualization_utils import plot_gan_losses
+        gan_loss_plot_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_gen_disc_loss.png")
+        plot_gan_losses(
+            losses_dict=training_losses,
+            model_name=args.model.upper(),
+            save_path=gan_loss_plot_file,
+            title=f"{args.model.upper()} Generator & Discriminator Loss - {args.dataset}"
+        )
+        # Save both losses to JSON
+        loss_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_gen_disc_losses.json")
+        with open(loss_file, 'w') as f:
+            json.dump(training_losses, f, indent=2)
+        logger.info(f"Saved generator/discriminator losses to {loss_file}")
+    elif training_losses:
         # Save loss plot
         loss_plot_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_training_loss.png")
         plot_training_loss(
@@ -122,7 +148,6 @@ def main():
             save_path=loss_plot_file,
             title=f"{args.model.upper()} Training Loss - {args.dataset}"
         )
-        
         # Save losses to JSON
         loss_file = os.path.join(args.output_dir, f"{args.dataset}_{args.model}_training_losses.json")
         with open(loss_file, 'w') as f:
