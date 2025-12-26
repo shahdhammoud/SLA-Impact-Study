@@ -37,9 +37,9 @@ models:
       epochs: 1000
     tuning_params:
       num_timesteps: [500, 1000, 2000]
-      hidden_dim: [128, 256, 512]
-      lr: [0.001, 0.002, 0.004]
-      batch_size: [512, 1024, 2048]
+      hidden_dim: [128]
+      lr: [0.0005] #, 0.001, 0.004
+      batch_size: [1024, 2048]
 
   gmm:
     name: "Gaussian Mixture Model"

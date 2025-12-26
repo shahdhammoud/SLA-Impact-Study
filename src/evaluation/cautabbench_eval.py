@@ -239,5 +239,7 @@ class CauTabBenchEvaluator:
             return list(obj)
         elif isinstance(obj, (np.integer, np.floating)):
             return float(obj)
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
         else:
             return obj

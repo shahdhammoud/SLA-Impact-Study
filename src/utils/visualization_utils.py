@@ -315,3 +315,38 @@ def plot_consensus_ranking(rankings_dict: Dict[str, List[Tuple[str, float]]],
         plt.show()
     
     plt.close()
+
+
+def plot_gan_losses(losses_dict: Dict[str, list], model_name: str, save_path: Optional[str] = None, title: Optional[str] = None) -> None:
+    """
+    Plot generator and discriminator losses over epochs for GAN models.
+    Args:
+        losses_dict: Dict with keys 'generator' and 'discriminator', values are lists of losses
+        model_name: Name of the model
+        save_path: Path to save the plot (if None, plot is displayed)
+        title: Custom title for the plot
+    """
+    gen_losses = losses_dict.get('generator', [])
+    disc_losses = losses_dict.get('discriminator', [])
+    if not gen_losses or not disc_losses:
+        print(f"No generator/discriminator losses to plot for {model_name}")
+        return
+    epochs = range(1, len(gen_losses) + 1)
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, gen_losses, 'b-', linewidth=2, label='Generator Loss')
+    plt.plot(epochs, disc_losses, 'r-', linewidth=2, label='Discriminator Loss')
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Loss', fontsize=12)
+    if title is None:
+        title = f'{model_name} - Generator & Discriminator Loss'
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    if save_path:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"GAN loss plot saved to {save_path}")
+    else:
+        plt.show()
+    plt.close()

@@ -1,33 +1,21 @@
 """
-CTGAN model wrapper using SDV library.
+CTGAN model wrapper (original, compatible version).
 """
 
 import pandas as pd
-import numpy as np
-from typing import Dict, Any, Optional
+from typing import Optional
 import torch
-
-from sdv.single_table import CTGANSynthesizer
-from sdv.metadata import SingleTableMetadata
+from ctgan import CTGAN
 
 from .base import BaseGenerativeModel
 
 
 class CTGANWrapper(BaseGenerativeModel):
-    """Wrapper for CTGAN generative model."""
-    
+    """Wrapper for CTGAN generative model (original implementation)."""
+
     def __init__(self, **kwargs):
-        """
-        Initialize CTGAN model.
-        
-        Args:
-            **kwargs: CTGAN parameters
-        """
         super().__init__(model_name="CTGAN", **kwargs)
-        
-        # Set device
         self.device = 'cuda' if torch.cuda.is_available() and kwargs.get('use_gpu', True) else 'cpu'
-        
         # Default parameters
         default_params = {
             'epochs': 300,
@@ -38,36 +26,19 @@ class CTGANWrapper(BaseGenerativeModel):
             'discriminator_lr': 2e-4,
             'discriminator_steps': 1,
             'pac': 10,
-            'cuda': self.device == 'cuda'
+            'verbose': True
         }
-        
-        # Update with provided params
         for key, value in default_params.items():
             if key not in self.params:
                 self.params[key] = value
-    
+
     def fit(self, data: pd.DataFrame, categorical_columns: Optional[list] = None, **kwargs):
         """
-        Fit CTGAN to data.
-        
-        Args:
-            data: Training data
-            categorical_columns: List of categorical column names
-            **kwargs: Additional training parameters
+        Fit CTGAN to data (original implementation).
         """
-        # Create metadata
-        metadata = SingleTableMetadata()
-        metadata.detect_from_dataframe(data)
-        
-        # Update with categorical columns if provided
-        if categorical_columns:
-            for col in categorical_columns:
-                if col in data.columns:
-                    metadata.update_column(col, sdtype='categorical')
-        
-        # Initialize synthesizer
-        self.model = CTGANSynthesizer(
-            metadata=metadata,
+        if categorical_columns is None:
+            categorical_columns = []
+        self.model = CTGAN(
             epochs=self.params['epochs'],
             batch_size=self.params['batch_size'],
             generator_dim=self.params['generator_dim'],
@@ -76,23 +47,11 @@ class CTGANWrapper(BaseGenerativeModel):
             discriminator_lr=self.params['discriminator_lr'],
             discriminator_steps=self.params['discriminator_steps'],
             pac=self.params['pac'],
-            cuda=self.params['cuda']
+            verbose=self.params['verbose']
         )
-        
-        # Fit model
-        self.model.fit(data)
+        self.model.fit(data, discrete_columns=categorical_columns)
         self.is_fitted = True
-        
-        # Track training losses (approximate, since SDV doesn't expose loss history directly)
-        # We'll store a placeholder that indicates training occurred
-        self.training_losses = []
-        for i in range(self.params['epochs']):
-            # Approximate loss decay for visualization purposes
-            # Real implementation would track actual generator/discriminator losses
-            loss = 1.0 / (1.0 + i * 0.01)
-            self.training_losses.append(loss)
-        
-        # Store metadata
+        self.training_losses = []  # Not available in this implementation
         self.metadata = {
             'n_samples': len(data),
             'n_features': len(data.columns),
@@ -100,21 +59,21 @@ class CTGANWrapper(BaseGenerativeModel):
             'categorical_columns': categorical_columns or [],
             'training_losses': self.training_losses
         }
-    
+
     def sample(self, n_samples: int, **kwargs) -> pd.DataFrame:
         """
         Generate synthetic samples.
-        
         Args:
             n_samples: Number of samples to generate
             **kwargs: Additional sampling parameters
-            
         Returns:
             DataFrame with synthetic samples
         """
         if not self.is_fitted:
             raise ValueError("Model must be fitted before sampling")
-        
         synthetic_data = self.model.sample(n_samples)
-        
         return synthetic_data
+
+    def get_training_losses(self):
+        # Not available in this implementation
+        return []

@@ -13,25 +13,26 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.models.ctgan_wrapper import CTGANWrapper
 from src.models.gmm_wrapper import GMMWrapper
 from src.models.bayesian_network import BayesianNetworkWrapper
+from src.models.tabddpm_wrapper import TabDDPMWrapper
 from src.tuning.optuna_tuner import OptunaTuner, create_param_space_from_config
 from src.data.loader import DataLoader
 from src.utils.logging_utils import setup_logger
 
-MODEL_CLASSES = {'ctgan': CTGANWrapper, 'gmm': GMMWrapper, 'bayesian_network': BayesianNetworkWrapper}
+MODEL_CLASSES = {'ctgan': CTGANWrapper, 'gmm': GMMWrapper, 'bayesian_network': BayesianNetworkWrapper, 'tabddpm': TabDDPMWrapper}
 
 def main():
     parser = argparse.ArgumentParser(description='Tune model hyperparameters')
     parser.add_argument('--dataset', type=str, required=True)
-    parser.add_argument('--model', type=str, required=True, choices=['ctgan', 'gmm', 'bayesian_network'])
-    parser.add_argument('--trials', type=int, default=100)
+    parser.add_argument('--model', type=str, required=True, choices=['ctgan', 'gmm', 'bayesian_network', 'tabddpm'])
+    parser.add_argument('--trials', type=int, default=12, help='Number of Optuna trials (default: 12)')
     parser.add_argument('--config', type=str, default='config/models.yaml')
     parser.add_argument('--data-dir', type=str, default='data/preprocessed')
     parser.add_argument('--output-dir', type=str, default='outputs/models')
     
     args = parser.parse_args()
     logger = setup_logger('tune', console=True)
-    logger.info(f"Tuning {args.model} on {args.dataset} with {args.trials} trials")
-    
+    logger.info(f"Tuning {args.model} on {args.dataset} with {args.trials} Optuna trials")
+
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
     
