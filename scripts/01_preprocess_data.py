@@ -51,6 +51,9 @@ def main():
         data, structure = loader.load_dataset(args.dataset)
         logger.info(f"Loaded data: {len(data)} samples, {len(data.columns)} features")
         logger.info(f"Loaded structure: {structure.number_of_nodes()} nodes, {structure.number_of_edges()} edges")
+        if data.empty:
+            logger.error(f"Loaded data is empty for dataset: {args.dataset}. Check the raw CSV file and loader logic.")
+            sys.exit(1)
     except FileNotFoundError as e:
         logger.error(f"Dataset not found: {e}")
         sys.exit(1)
@@ -70,7 +73,11 @@ def main():
     # Transform data
     logger.info("Transforming data...")
     data_transformed = preprocessor.transform(data, normalize=args.normalize)
-    
+    logger.info(f"Transformed data shape: {data_transformed.shape}")
+    if data_transformed.empty or data_transformed.shape[0] == 0 or data_transformed.shape[1] == 0:
+        logger.error(f"Transformed data is empty for dataset: {args.dataset}. Check preprocessing logic.")
+        sys.exit(1)
+
     # Save metadata
     metadata_dir = 'data/info'
     os.makedirs(metadata_dir, exist_ok=True)

@@ -5,14 +5,32 @@ Script 10: Conditional Independence (CI) ROC AUC Report
 Evaluates how well synthetic data preserves the CI structure of the ground-truth graph.
 Handles mixed-type data (continuous + categorical).
 """
-import argparse
-import os
+
 import sys
-import pandas as pd
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import random
 import numpy as np
+SEED = 42
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+try:
+    import torch
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+except ImportError:
+    pass
+
+import argparse
+import pandas as pd
 import json
 from sklearn.metrics import roc_auc_score, roc_curve
 import matplotlib.pyplot as plt
+from src.evaluation.ci_auc_utils import compute_ci_auc
 
 # You may need to install causallearn for KCI/Fisher's Z
 try:
@@ -96,50 +114,27 @@ def main():
     parser.add_argument('--info', type=str, required=True, help='Path to info JSON (for categorical features)')
     parser.add_argument('--graph', type=str, required=True, help='Path to ground-truth adjacency matrix (.txt or .csv)')
     parser.add_argument('--output', type=str, required=True, help='Output directory for report and plots')
+    parser.add_argument('--model-path', type=str, default=None, help='Path to best model (optional)')
     args = parser.parse_args()
 
-    real = pd.read_csv(args.real)
+    # NOTE: For consistency, use the synthetic data file saved from the best Optuna trial:
+    # outputs/synthetic/<dataset>_<model>_synthetic_best.csv
+    # This guarantees the Y-axis value matches the maximized Optuna metric.
+
+    # Use the best model and test set if available
     synth = pd.read_csv(args.synthetic)
     with open(args.info, 'r') as f:
         info = json.load(f)
-    categorical = info.get('categorical_features', [])
-
-    # Identify variable types
-    num_cols, cat_cols = identify_variable_types(real, categorical)
-    # Preprocess (one-hot for categorical)
-    real_proc, _ = preprocess_for_ci(real, cat_cols)
-    synth_proc, _ = preprocess_for_ci(synth, cat_cols)
-
-    columns = real.columns.tolist()
-    processed_columns = synth_proc.columns.tolist()
-    # Load ground-truth graph as adjacency matrix
-    adj = load_ground_truth_graph(args.graph, columns)
-    queries = generate_ci_queries(adj, columns, processed_columns)
-
-    # For each query, run CI test on real and synthetic
-    y_true = []  # 1 if d-separated (independent), 0 if d-connected (dependent)
-    y_score = [] # p-value from CI test on synthetic
-    for X, Y, S in queries:
-        # Map one-hot column names back to base column names for adjacency lookup
-        X_base = get_base_col(X)
-        Y_base = get_base_col(Y)
-        i, j = columns.index(X_base), columns.index(Y_base)
-        dsep = int(adj[i, j] == 0 and adj[j, i] == 0)
-        y_true.append(dsep)
-        # Use synthetic data for CI test
-        pval = run_ci_test(synth_proc, X, Y, S, num_cols, cat_cols)
-        y_score.append(pval)
-
-    # Compute ROC AUC
-    auc = roc_auc_score(y_true, y_score)
+    # Compute CI AUC using the shared utility
+    auc, y_true, y_score = compute_ci_auc(synth, info, args.graph)
     print(f"ROC AUC (synthetic CI structure vs ground truth): {auc:.4f}")
-
     # Save report
     os.makedirs(args.output, exist_ok=True)
     with open(os.path.join(args.output, 'ci_auc_report.json'), 'w') as f:
         json.dump({'roc_auc': auc}, f, indent=2)
 
     # Plot ROC curve
+    from sklearn.metrics import roc_curve
     fpr, tpr, _ = roc_curve(y_true, y_score)
     plt.figure(figsize=(8, 6))
     plt.plot(fpr, tpr, label=f'ROC curve (AUC = {auc:.3f})')

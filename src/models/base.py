@@ -1,7 +1,3 @@
-"""
-Base interface for generative models.
-"""
-
 from abc import ABC, abstractmethod
 import pandas as pd
 import numpy as np
@@ -11,8 +7,7 @@ import joblib
 
 
 class BaseGenerativeModel(ABC):
-    """Abstract base class for generative models."""
-    
+
     def __init__(self, model_name: str, **kwargs):
         """
         Initialize model.
@@ -26,13 +21,11 @@ class BaseGenerativeModel(ABC):
         self.model = None
         self.is_fitted = False
         self.metadata = {}
-        self.training_losses = []  # Track training losses
-    
+        self.training_losses = []
+
     @abstractmethod
     def fit(self, data: pd.DataFrame, **kwargs):
-        """
-        Fit the model to data.
-        
+
         Args:
             data: Training data
             **kwargs: Additional training parameters
@@ -41,8 +34,6 @@ class BaseGenerativeModel(ABC):
     
     @abstractmethod
     def sample(self, n_samples: int, **kwargs) -> pd.DataFrame:
-        """
-        Generate synthetic samples.
         
         Args:
             n_samples: Number of samples to generate
@@ -54,17 +45,13 @@ class BaseGenerativeModel(ABC):
         pass
     
     def get_training_losses(self) -> List[float]:
-        """
-        Get training losses over epochs.
-        
+
         Returns:
             List of training losses
         """
         return self.training_losses
     
     def save(self, filepath: str):
-        """
-        Save model to file.
         
         Args:
             filepath: Path to save model
@@ -86,9 +73,7 @@ class BaseGenerativeModel(ABC):
         joblib.dump(save_dict, filepath)
     
     def load(self, filepath: str):
-        """
-        Load model from file.
-        
+
         Args:
             filepath: Path to load model from
         """
@@ -102,8 +87,6 @@ class BaseGenerativeModel(ABC):
         self.training_losses = save_dict.get('training_losses', [])
     
     def get_params(self) -> Dict[str, Any]:
-        """
-        Get model parameters.
         
         Returns:
             Dictionary of parameters
@@ -111,17 +94,13 @@ class BaseGenerativeModel(ABC):
         return self.params.copy()
     
     def set_params(self, **params):
-        """
-        Set model parameters.
-        
+
         Args:
             **params: Parameters to set
         """
         self.params.update(params)
     
     def get_metadata(self) -> Dict[str, Any]:
-        """
-        Get model metadata.
         
         Returns:
             Dictionary of metadata

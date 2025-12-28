@@ -1,4 +1,3 @@
-"""Analyze all datasets for planning."""
 import pandas as pd
 import os
 
@@ -21,11 +20,9 @@ for d in datasets:
         rows = len(df)
         cols = len(df.columns)
 
-        # Check data types
         dtypes = df.dtypes.value_counts().to_dict()
         dtype_str = ', '.join([f"{str(k).split('.')[-1]}:{v}" for k, v in dtypes.items()])
 
-        # Categorize
         if cols <= 10:
             category = "Small"
             small.append((d, rows, cols))
@@ -54,4 +51,3 @@ for d, r, c in sorted(medium, key=lambda x: x[2]):
 print("\n🔴 LARGE DATASETS (>30 features) - Most complex:")
 for d, r, c in sorted(large, key=lambda x: x[2]):
     print(f"   {d}: {c} features, {r} rows")
-

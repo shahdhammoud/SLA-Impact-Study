@@ -1,7 +1,3 @@
-"""
-CTGAN model wrapper (original, compatible version).
-"""
-
 import pandas as pd
 from typing import Optional
 import torch
@@ -11,12 +7,9 @@ from .base import BaseGenerativeModel
 
 
 class CTGANWrapper(BaseGenerativeModel):
-    """Wrapper for CTGAN generative model (original implementation)."""
-
     def __init__(self, **kwargs):
         super().__init__(model_name="CTGAN", **kwargs)
         self.device = 'cuda' if torch.cuda.is_available() and kwargs.get('use_gpu', True) else 'cpu'
-        # Default parameters
         default_params = {
             'epochs': 300,
             'batch_size': 500,

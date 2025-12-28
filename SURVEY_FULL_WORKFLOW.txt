@@ -1,0 +1,91 @@
+# FULL WORKFLOW INSTRUCTIONS FOR THE SURVEY DATASET
+
+This file contains the complete, step-by-step instructions to run the entire workflow for the survey dataset, from preprocessing to final visualization and Spearman rank correlation analysis. Follow these steps in order for reproducible results.
+
+---
+
+## 1. Preprocess the Dataset
+```
+python scripts/01_preprocess_data.py --dataset survey
+```
+
+## 2. Tune Generative Models (Optuna, CI ROC AUC as metric)
+```
+python scripts/03_tune_model.py --dataset survey --model gmm --trials 100
+python scripts/03_tune_model.py --dataset survey --model ctgan --trials 20
+python scripts/03_tune_model.py --dataset survey --model tabddpm --trials 100
+```
+
+## 3. Train Generative Models on Best Parameters
+```
+python scripts/02_train_model.py --dataset survey --model gmm --use-best-params
+python scripts/02_train_model.py --dataset survey --model ctgan --use-best-params
+python scripts/02_train_model.py --dataset survey --model tabddpm --use-best-params
+```
+
+## 4. Generate Synthetic Data (match validation set size: 1000)
+```
+python scripts/04_generate_synthetic.py --dataset survey --model gmm --n-samples 1000
+python scripts/04_generate_synthetic.py --dataset survey --model ctgan --n-samples 1000
+python scripts/04_generate_synthetic.py --dataset survey --model tabddpm --n-samples 1000
+```
+
+## 5. Learn Causal Structures (for each algorithm, real and synthetic)
+```
+python scripts/05_learn_structure.py --dataset survey --algorithm pc --data-type real
+python scripts/05_learn_structure.py --dataset survey --algorithm ges --data-type real
+python scripts/05_learn_structure.py --dataset survey --algorithm fci --data-type real
+python scripts/05_learn_structure.py --dataset survey --algorithm cdnod --data-type real
+
+python scripts/05_learn_structure.py --dataset survey --algorithm pc --data-type synthetic --model gmm
+python scripts/05_learn_structure.py --dataset survey --algorithm pc --data-type synthetic --model ctgan
+python scripts/05_learn_structure.py --dataset survey --algorithm pc --data-type synthetic --model tabddpm
+python scripts/05_learn_structure.py --dataset survey --algorithm ges --data-type synthetic --model gmm
+python scripts/05_learn_structure.py --dataset survey --algorithm ges --data-type synthetic --model ctgan
+python scripts/05_learn_structure.py --dataset survey --algorithm ges --data-type synthetic --model tabddpm
+python scripts/05_learn_structure.py --dataset survey --algorithm fci --data-type synthetic --model gmm
+python scripts/05_learn_structure.py --dataset survey --algorithm fci --data-type synthetic --model ctgan
+python scripts/05_learn_structure.py --dataset survey --algorithm fci --data-type synthetic --model tabddpm
+python scripts/05_learn_structure.py --dataset survey --algorithm cdnod --data-type synthetic --model gmm
+python scripts/05_learn_structure.py --dataset survey --algorithm cdnod --data-type synthetic --model ctgan
+python scripts/05_learn_structure.py --dataset survey --algorithm cdnod --data-type synthetic --model tabddpm
+```
+
+## 6. Synthetic Data Quality Report (CI ROC AUC, F1, SHD, etc.)
+```
+python scripts/08_synthetic_quality_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_gmm_synthetic_best.csv --info data/info/survey_info.json --output outputs/evaluations/survey_gmm_quality.json
+python scripts/08_synthetic_quality_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_ctgan_synthetic_best.csv --info data/info/survey_info.json --output outputs/evaluations/survey_ctgan_quality.json
+python scripts/08_synthetic_quality_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_tabddpm_synthetic_best.csv --info data/info/survey_info.json --output outputs/evaluations/survey_tabddpm_quality.json
+```
+
+## 7. CI ROC AUC Evaluation (per model)
+```
+python scripts/10_ci_auc_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_gmm_synthetic_best.csv --info data/info/survey_info.json --graph benchmarks_with_ground_truth/txt/survey.txt --output outputs/evaluations/survey_gmm_ci_auc.json
+python scripts/10_ci_auc_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_ctgan_synthetic_best.csv --info data/info/survey_info.json --graph benchmarks_with_ground_truth/txt/survey.txt --output outputs/evaluations/survey_ctgan_ci_auc.json
+python scripts/10_ci_auc_report.py --real data/preprocessed/survey_preprocessed.csv --synthetic outputs/synthetic/survey_tabddpm_synthetic_best.csv --info data/info/survey_info.json --graph benchmarks_with_ground_truth/txt/survey.txt --output outputs/evaluations/survey_tabddpm_ci_auc.json
+```
+
+## 8. Compare Rankings and Generate Visualizations (includes Spearman correlation)
+```
+python scripts/07_compare_rankings.py --dataset survey --algorithms pc,ges,fci,cdnod --models gmm,ctgan,tabddpm --visualize
+```
+
+## 9. Visualize Spearman Correlation Matrix
+```
+python scripts/12_plot_spearman_correlation.py --csv outputs/rankings/survey_spearman_correlation.csv --output outputs/rankings/survey_spearman_correlation.png --title "Spearman Rank Correlation Matrix (Survey)"
+```
+
+---
+
+# Notes
+- Always check that the correct files are being used for each step (especially synthetic_best.csv for each model).
+- All outputs (metrics, rankings, plots) are saved in the outputs/ directory.
+- For reproducibility, ensure random seeds are set in all scripts.
+- If you add new models or algorithms, update the commands accordingly.
+- For troubleshooting, check logs and output files after each step.
+
+---
+
+This workflow ensures you cover all steps from data preparation to advanced ranking stability analysis for the survey dataset.
+
+

@@ -7,51 +7,52 @@ models:
     default_params:
       epochs: 300
       batch_size: 500
-      generator_dim: [256, 256]
-      discriminator_dim: [256, 256]
-      generator_lr: 0.0002
-      discriminator_lr: 0.0002
+      generator_dim: [128, 128]
+      discriminator_dim: [128, 128]
+      generator_lr: 0.00001
+      discriminator_lr: 0.00001
       discriminator_steps: 1
-      pac: 10
+      pac: 4
     tuning_params:
-      epochs: [100, 300, 500]
-      batch_size: [250, 500, 1000]
-      generator_lr: [0.0001, 0.0005]
-      discriminator_lr: [0.0001, 0.0005]
-      pac: [5, 10, 20]
+      epochs: [300]  # Try longer training
+      batch_size: [600]
+      generator_lr: [ 0.00035, 0.0004, 0.00045 ]
+      discriminator_lr: [0.00008, 0.0001, 0.00012 ]  # Even lower!
+      pac: [4]
 
   tabddpm:
     name: "TabDDPM"
-    framework: "custom"  # Will use tab-ddpm codebase
+    framework: "custom"
     default_params:
-      num_timesteps: 1000
+      num_timesteps: 500  # Reduced for categorical data
       gaussian_loss_type: "mse"
       scheduler: "cosine"
       model_type: "mlp"
-      num_layers: 4
-      hidden_dim: 256
-      dropout: 0.0
-      lr: 0.002
+      num_layers: 3  # Reduced for simpler dataset
+      hidden_dim: 128
+      dropout: 0.1  # Added for regularization
+      lr: 0.001
       weight_decay: 0.0001
-      batch_size: 1024
-      epochs: 1000
+      batch_size: 256  # Much smaller batch size
+      epochs: 500  # Fewer epochs for categorical data
     tuning_params:
-      num_timesteps: [500, 1000, 2000]
-      hidden_dim: [128]
-      lr: [0.0005] #, 0.001, 0.004
-      batch_size: [1024, 2048]
+      num_timesteps: [ 250, 500, 1000 ]
+      hidden_dim: [ 64, 128, 256 ]
+      lr: [ 0.0005, 0.001, 0.002 ]
+      batch_size: [ 128, 256, 512 ]
+      dropout: [ 0.0, 0.1, 0.2 ]
 
   gmm:
     name: "Gaussian Mixture Model"
     framework: "sklearn"
     default_params:
-      n_components: 10
+      n_components: 9
       covariance_type: "full"
       max_iter: 100
       n_init: 10
       random_state: 42
     tuning_params:
-      n_components: [5, 10, 20, 30]
+      n_components: [7,8,9,10]
       covariance_type: ["full", "tied", "diag", "spherical"]
       max_iter: [100, 200]
 

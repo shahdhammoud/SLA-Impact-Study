@@ -1,6 +1,21 @@
+import os
+import random
+import numpy as np
+SEED = 42
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+try:
+    import torch
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+except ImportError:
+    pass
+
 import argparse
 import json
-import os
 import sys
 import pandas as pd
 from datetime import datetime
@@ -55,7 +70,7 @@ def main():
     # Inverse transform to original scale
     preprocessor = Preprocessor(args.dataset)
     synthetic_data = preprocessor.inverse_transform(synthetic_data, denormalize=True)
-    
+
     # Save synthetic data (without timestamp for consistent naming)
     output_filename = os.path.join(output_dir, f'{args.dataset}_{args.model}_synthetic.csv')
     synthetic_data.to_csv(output_filename, index=False)

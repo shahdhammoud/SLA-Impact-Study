@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Script: plot_cautabench_vs_reliability_per_algorithm.py
-
-Generates scatter plots of CauTabBench Quality Score (Y-axis) vs Reliability Score (X-axis)
-for each structural learning algorithm, with all generative models shown per plot.
-
-Usage:
-    python plot_cautabench_vs_reliability_per_algorithm.py --dataset healthcare \
-        --ranking-json outputs/rankings/healthcare_ranking_comparison.json \
-        --eval-dir outputs/evaluations \
-        --output-dir outputs/rankings/visualizations
-"""
 import argparse
 import os
 import json
@@ -24,7 +12,6 @@ def load_cautabench_scores(models, eval_dir, dataset):
         if os.path.exists(eval_path):
             with open(eval_path, 'r') as f:
                 report = json.load(f)
-            # Use detection_score as a proxy for quality if no explicit quality_score
             scores[model] = 1.0 - report.get('detection_score', 0.0)
         else:
             scores[model] = None
@@ -32,7 +19,7 @@ def load_cautabench_scores(models, eval_dir, dataset):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Plot CauTabBench vs Reliability per algorithm.")
+    parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--ranking-json', type=str, required=True)
     parser.add_argument('--eval-dir', type=str, required=True)
@@ -74,9 +61,9 @@ def main():
         plt.tight_layout()
         out_path = os.path.join(args.output_dir, f"{args.dataset}_cautabench_vs_reliability_{algorithm.lower()}.png")
         plt.savefig(out_path, dpi=300, bbox_inches='tight')
-        print(f"✅ Saved: {out_path}")
+        print(f"Saved: {out_path}")
         plt.close()
+
 
 if __name__ == '__main__':
     main()
-

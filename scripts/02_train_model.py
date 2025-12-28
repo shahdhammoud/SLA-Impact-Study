@@ -11,6 +11,8 @@ import sys
 import yaml
 import pandas as pd
 import json
+import random
+import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -20,6 +22,21 @@ from src.models.bayesian_network import BayesianNetworkWrapper
 from src.models.tabddpm_wrapper import TabDDPMWrapper
 from src.utils.logging_utils import setup_logger
 from src.utils.visualization_utils import plot_training_loss
+
+
+# Set random seed for reproducibility
+SEED = 42
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+try:
+    import torch
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+except ImportError:
+    pass
 
 
 MODEL_CLASSES = {
@@ -95,26 +112,26 @@ def main():
     data_file = os.path.join(args.data_dir, f"{args.dataset}_preprocessed.csv")
     data = pd.read_csv(data_file)
     logger.info(f"Loaded {len(data)} samples")
-    
+
     # Load feature info
     info_file = os.path.join('data/info', f"{args.dataset}_info.json")
     with open(info_file, 'r') as f:
         feature_info = json.load(f)
-    
+
     categorical_features = feature_info['categorical_features']
-    
+
     # Initialize model
     logger.info(f"Initializing {args.model} model...")
     model_class = MODEL_CLASSES[args.model]
     model = model_class(**params)
-    
+
     # Train model
     logger.info("Training model...")
     if args.model == 'ctgan':
         model.fit(data, categorical_columns=categorical_features)
     else:
         model.fit(data)
-    
+
     logger.info("Training complete!")
     
     # Save model

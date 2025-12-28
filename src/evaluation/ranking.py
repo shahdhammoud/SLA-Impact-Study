@@ -1,9 +1,3 @@
-"""
-Ranking comparison utilities.
-
-Evaluate causal discovery algorithms as synthetic data evaluation metrics.
-"""
-
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional
@@ -15,15 +9,13 @@ import seaborn as sns
 
 
 class RankingComparator:
-    """Evaluate structural learning algorithms for synthetic data quality assessment."""
 
     def __init__(self):
-        """Initialize ranking comparator."""
-        self.ground_truths = {}  # {algorithm: G_true}
-        self.real_structures = {}  # {algorithm: G_real}
-        self.synthetic_structures = {}  # {model_name: {algorithm: G_synthetic}}
-        self.reliability_scores = {}  # {algorithm: {model_name: score}}
-        self.cautabench_scores = {}  # {model_name: score}
+        self.ground_truths = {}
+        self.real_structures = {}
+        self.synthetic_structures = {}
+        self.reliability_scores = {}
+        self.cautabench_scores = {}
 
     def load_ground_truth(self, algorithm: str, graph_path: str):
         """
@@ -96,7 +88,10 @@ class RankingComparator:
 
         if shd_synthetic_true == 0:
             return 1.0
-        return shd_synthetic_real / shd_synthetic_true
+        score = 1 - abs(shd_synthetic_real - shd_synthetic_true) / max(shd_synthetic_real, shd_synthetic_true, 1)
+        score = max(0.0, min(1.0, score))
+
+        return score
 
     def compute_all_reliability_scores(self) -> Dict[str, Dict[str, float]]:
         """
@@ -738,19 +733,20 @@ class RankingComparator:
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"✅ {algorithm.upper()} comparison plot saved to: {save_path}")
+            print(f" {algorithm.upper()} comparison plot saved to: {save_path}")
         else:
             plt.show()
 
         plt.close()
 
-    def plot_all_visualizations(self, output_dir: str, dataset_name: str = "dataset"):
+    def plot_all_visualizations(self, output_dir: str, dataset_name: str = "dataset", models: list = None):
         """
         Generate and save all visualization plots.
 
         Args:
             output_dir: Directory to save all plots
             dataset_name: Name of the dataset for file naming
+            models: List of model names to use for CI AUC plotting
         """
         os.makedirs(output_dir, exist_ok=True)
 
@@ -785,7 +781,10 @@ class RankingComparator:
         self.plot_regression_metric_vs_reliability("R2", output_dir, dataset_name)
 
         # 6. CI ROC AUC vs reliability
-        self.plot_ci_auc_vs_reliability(output_dir, dataset_name)
+        if models is not None:
+            self.plot_ci_auc_vs_reliability(dataset_name, models, output_dir)
+        else:
+            print("[WARNING] No models list provided for CI ROC AUC plotting.")
 
         print(f"\n{'='*60}")
         print(f"✅ All visualizations saved to: {output_dir}")
@@ -810,39 +809,51 @@ class RankingComparator:
         self.reliability_scores = data.get('reliability_scores', {})
         print(f"✅ Ranking comparison loaded from: {filepath}")
 
-    def plot_ci_auc_vs_reliability(self, output_dir: str, dataset_name: str):
+    def load_best_ci_auc_scores(self, dataset: str, models: list, models_dir: str = 'outputs/models') -> dict:
         """
-        Plot CI ROC AUC vs reliability score for each algorithm/model.
-        Assumes CI AUC reports are saved as outputs/evaluations/{dataset}_{model}_ci_auc/ci_auc_report.json
+        Load the best CI ROC AUC value for each model from the JSON file saved during tuning.
+        Returns a dictionary: {model_name: ci_auc}
+        """
+        ci_auc_scores = {}
+        for model in models:
+            ci_auc_path = os.path.join(models_dir, f"{dataset}_{model}_best_ci_auc.json")
+            if os.path.exists(ci_auc_path):
+                with open(ci_auc_path, 'r') as f:
+                    data = json.load(f)
+                    ci_auc_scores[model] = data.get('ci_auc', None)
+            else:
+                ci_auc_scores[model] = None
+        return ci_auc_scores
+
+    def plot_ci_auc_vs_reliability(self, dataset: str, models: list, output_dir: str):
+        """
+        Plot CI ROC AUC (from tuning) vs reliability score for each model and algorithm.
         """
         if not self.reliability_scores:
             self.compute_all_reliability_scores()
+        ci_auc_scores = self.load_best_ci_auc_scores(dataset, models)
         for algorithm in self.ground_truths.keys():
-            models = []
-            auc_vals = []
+            models_with_scores = []
+            ci_auc_vals = []
             reliability_vals = []
-            for model in self.synthetic_structures.keys():
-                auc_path = os.path.join('outputs', 'evaluations', f'{dataset_name}_{model}_ci_auc', 'ci_auc_report.json')
-                if os.path.exists(auc_path) and model in self.reliability_scores[algorithm]:
-                    with open(auc_path, 'r') as f:
-                        auc = json.load(f).get('roc_auc', None)
-                    if auc is not None:
-                        models.append(model)
-                        auc_vals.append(auc)
-                        reliability_vals.append(self.reliability_scores[algorithm][model])
-            if not models:
+            for model in models:
+                if model in self.reliability_scores[algorithm] and ci_auc_scores[model] is not None:
+                    models_with_scores.append(model)
+                    ci_auc_vals.append(ci_auc_scores[model])
+                    reliability_vals.append(self.reliability_scores[algorithm][model])
+            if not models_with_scores:
                 continue
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots(figsize=(10, 7))
-            ax.scatter(reliability_vals, auc_vals, s=200, edgecolors='black', alpha=0.7)
-            for i, model in enumerate(models):
-                ax.annotate(model, (reliability_vals[i], auc_vals[i]), fontsize=12, fontweight='bold', xytext=(10, 10), textcoords='offset points')
+            ax.scatter(reliability_vals, ci_auc_vals, s=200, edgecolors='black', alpha=0.7)
+            for i, model in enumerate(models_with_scores):
+                ax.annotate(model, (reliability_vals[i], ci_auc_vals[i]), fontsize=12, fontweight='bold', xytext=(10, 10), textcoords='offset points')
             ax.set_xlabel(f'Reliability Score ({algorithm})', fontsize=13, fontweight='bold')
-            ax.set_ylabel('CI ROC AUC', fontsize=13, fontweight='bold')
+            ax.set_ylabel('CI ROC AUC (from tuning)', fontsize=13, fontweight='bold')
             ax.set_title(f'CI ROC AUC vs Reliability ({algorithm})', fontsize=16, fontweight='bold', pad=20)
             ax.grid(True, alpha=0.3, linestyle='--')
             plt.tight_layout()
-            save_path = os.path.join(output_dir, f"{dataset_name}_ci_auc_vs_reliability_{algorithm.lower()}.png")
+            save_path = os.path.join(output_dir, f"{dataset}_ci_auc_vs_reliability_{algorithm.lower()}.png")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             plt.close()

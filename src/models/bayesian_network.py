@@ -1,7 +1,3 @@
-"""
-Bayesian Network generative model using pgmpy.
-"""
-
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, Optional
@@ -13,18 +9,11 @@ from .base import BaseGenerativeModel
 
 
 class BayesianNetworkWrapper(BaseGenerativeModel):
-    """Wrapper for Bayesian Network generative model."""
-    
+
     def __init__(self, **kwargs):
-        """
-        Initialize Bayesian Network model.
-        
-        Args:
-            **kwargs: BN parameters
-        """
+
         super().__init__(model_name="BayesianNetwork", **kwargs)
         
-        # Default parameters
         default_params = {
             'learning_algorithm': 'hillclimb',
             'scoring_method': 'bic',
@@ -32,7 +21,6 @@ class BayesianNetworkWrapper(BaseGenerativeModel):
             'random_state': 42
         }
         
-        # Update with provided params
         for key, value in default_params.items():
             if key not in self.params:
                 self.params[key] = value
@@ -41,16 +29,7 @@ class BayesianNetworkWrapper(BaseGenerativeModel):
         self.sampler = None
     
     def fit(self, data: pd.DataFrame, **kwargs):
-        """
-        Fit Bayesian Network to data.
-        
-        This learns both structure and parameters.
-        
-        Args:
-            data: Training data
-            **kwargs: Additional training parameters
-        """
-        # Structure learning
+
         if self.params['scoring_method'] == 'bic':
             scoring = BicScore(data)
         elif self.params['scoring_method'] == 'k2':
@@ -65,31 +44,24 @@ class BayesianNetworkWrapper(BaseGenerativeModel):
                 max_iter=self.params['max_iter']
             )
         else:
-            # Fallback to hill climb
             estimator = HillClimbSearch(data)
             learned_structure = estimator.estimate(
                 scoring_method=scoring,
                 max_iter=self.params['max_iter']
             )
         
-        # Create Bayesian Network with learned structure
         self.bn_model = BayesianNetwork(learned_structure.edges())
         
-        # Parameter learning (CPDs)
         self.bn_model.fit(data, estimator=MaximumLikelihoodEstimator)
         
-        # Create sampler
         self.sampler = BayesianModelSampling(self.bn_model)
         
         self.model = self.bn_model
         self.is_fitted = True
         
-        # Track training progress (structure learning doesn't have typical loss)
-        # We'll store the score as a proxy
         final_score = scoring.score(learned_structure)
         self.training_losses = [final_score]
         
-        # Store metadata
         self.metadata = {
             'n_samples': len(data),
             'n_features': len(data.columns),
@@ -114,10 +86,8 @@ class BayesianNetworkWrapper(BaseGenerativeModel):
         if not self.is_fitted:
             raise ValueError("Model must be fitted before sampling")
         
-        # Generate samples using forward sampling
         synthetic_data = self.sampler.forward_sample(size=n_samples)
         
-        # Ensure column order matches original
         synthetic_data = synthetic_data[self.metadata['features']]
         
         return synthetic_data

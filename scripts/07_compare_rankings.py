@@ -6,16 +6,54 @@ Evaluates how reliable different causal discovery algorithms are for
 assessing synthetic data quality.
 """
 
-import argparse
 import os
+import random
+import numpy as np
+SEED = 42
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+try:
+    import torch
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+except ImportError:
+    pass
+
+import argparse
 import sys
 import json
 from glob import glob
+import pandas as pd
+from scipy.stats import spearmanr
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.evaluation.ranking import RankingComparator
 from src.utils.logging_utils import setup_logger
+
+
+def compute_spearman_correlation_table(rankings_dict, metrics_to_use, models):
+    # Build a matrix: rows=metrics, cols=metrics, values=Spearman correlation between model rankings
+    n = len(metrics_to_use)
+    corr = pd.DataFrame(np.eye(n), index=metrics_to_use, columns=metrics_to_use)
+    for i, m1 in enumerate(metrics_to_use):
+        for j, m2 in enumerate(metrics_to_use):
+            if i != j:
+                v1 = [rankings_dict[m1].get(m, float('nan')) for m in models]
+                v2 = [rankings_dict[m2].get(m, float('nan')) for m in models]
+                mask = ~pd.isna(v1) & ~pd.isna(v2)
+                if sum(mask) >= 2:
+                    corr.iloc[i, j] = spearmanr(np.array(v1)[mask], np.array(v2)[mask]).correlation
+                else:
+                    corr.iloc[i, j] = float('nan')
+    return corr
+
+def save_spearman_correlation_table(corr, path):
+    corr.to_csv(path)
+    print(f"[Spearman] Correlation matrix saved to: {path}")
 
 
 def main():
@@ -94,6 +132,16 @@ def main():
             else:
                 logger.warning(f"Synthetic structure not found: {synthetic_structure_file}")
 
+    # Patch: Always use the correct synthetic data file for each model
+    # This ensures consistency with the best Optuna trial output
+    # (Assumes downstream code uses this file for structure learning and evaluation)
+    for model in models:
+        synthetic_best_path = os.path.join('outputs', 'synthetic', f"{args.dataset}_{model}_synthetic_best.csv")
+        if not os.path.exists(synthetic_best_path):
+            logger.warning(f"[WARNING] Synthetic data file for model {model} not found: {synthetic_best_path}")
+        else:
+            logger.info(f"[INFO] Using synthetic data file for {model}: {synthetic_best_path}")
+
     # Load CauTabBench scores (optional)
     logger.info("\n📊 Loading CauTabBench scores...")
     for model in models:
@@ -159,14 +207,79 @@ def main():
     comparator.save(output_file)
     logger.info(f"\n✅ Results saved to: {output_file}")
 
+    # ================= SPEARMAN RANK CORRELATION ANALYSIS =================
+    # Prepare rankings for each metric (using the same values as in the plots)
+    # Example metrics: CI ROC AUC, F1, SHD, Precision, Recall, Composite
+    # This assumes you have a summary['metrics'] dict with per-model scores for each metric
+    # If not, you may need to load them from the appropriate files or compute them here
+    #
+    # For demonstration, let's assume you have a dictionary like:
+    # rankings_dict = {
+    #     'ci_roc_auc': {'ctgan': 0.58, 'gmm': 0.44, 'tabddpm': 0.40},
+    #     'f1': {'ctgan': 0.12, 'gmm': 0.22, 'tabddpm': 0.18},
+    #     ...
+    # }
+    #
+    # You should replace this with actual loading from your evaluation outputs.
+    #
+    # Example: Load CI ROC AUC from outputs/evaluations/<dataset>_<model>_ci_auc.json
+    metrics = ['ci_roc_auc', 'f1', 'shd', 'precision', 'recall', 'composite']
+    rankings_dict = {m: {} for m in metrics}
+    for model in models:
+        # Load CI ROC AUC from best Optuna value
+        best_ci_auc_path = os.path.join('outputs', 'models', f'{args.dataset}_{model}_best_ci_auc.json')
+        ci_auc_value = None
+        if os.path.exists(best_ci_auc_path):
+            try:
+                with open(best_ci_auc_path, 'r') as f:
+                    best_data = json.load(f)
+                    ci_auc_value = best_data.get('ci_auc', float('nan'))
+                    rankings_dict['ci_roc_auc'][model] = ci_auc_value
+            except Exception as e:
+                logger.warning(f"Failed to load best Optuna CI ROC AUC for {model}: {e}")
+        # Fallback: Load CI ROC AUC from evaluation report if best not found
+        if ci_auc_value is None or pd.isna(ci_auc_value):
+            ci_auc_path = os.path.join('outputs', 'evaluations', f'{args.dataset}_{model}_ci_auc.json', 'ci_auc_report.json')
+            if os.path.exists(ci_auc_path):
+                try:
+                    with open(ci_auc_path, 'r') as f:
+                        ci_auc_data = json.load(f)
+                        rankings_dict['ci_roc_auc'][model] = ci_auc_data.get('roc_auc', float('nan'))
+                except Exception as e:
+                    logger.warning(f"Failed to load CI ROC AUC for {model}: {e}")
+        # Load other metrics (F1, SHD, etc.) from quality or regression metrics files as needed
+        quality_path = os.path.join('outputs', 'evaluations', f'{args.dataset}_{model}_quality.json')
+        if os.path.exists(quality_path):
+            try:
+                with open(quality_path, 'r') as f:
+                    quality_data = json.load(f)
+                    rankings_dict['f1'][model] = quality_data.get('f1', float('nan'))
+                    rankings_dict['shd'][model] = quality_data.get('shd', float('nan'))
+                    rankings_dict['precision'][model] = quality_data.get('precision', float('nan'))
+                    rankings_dict['recall'][model] = quality_data.get('recall', float('nan'))
+                    rankings_dict['composite'][model] = quality_data.get('composite', float('nan'))
+            except Exception as e:
+                logger.warning(f"Failed to load quality metrics for {model}: {e}")
+    # Only keep metrics that have at least two non-NaN values
+    metrics_to_use = [m for m in metrics if sum(~pd.isna(list(rankings_dict[m].values()))) >= 2]
+    if len(metrics_to_use) >= 2:
+        corr = compute_spearman_correlation_table(rankings_dict, metrics_to_use, models)
+        spearman_path = os.path.join(args.output_dir, f"{args.dataset}_spearman_correlation.csv")
+        save_spearman_correlation_table(corr, spearman_path)
+    else:
+        logger.warning("Not enough valid metrics for Spearman correlation analysis.")
+    # ================= END SPEARMAN RANK CORRELATION ANALYSIS =================
+
     # Generate visualizations
     if args.visualize:
-        logger.info("\n📊 Generating visualizations...")
+        logger.info("\n Generating visualizations...")
         viz_dir = os.path.join(args.output_dir, 'visualizations')
-        comparator.plot_all_visualizations(viz_dir, args.dataset)
+        comparator.plot_all_visualizations(viz_dir, args.dataset, models)
+        # Add: plot CI ROC AUC vs reliability using best Optuna value (now handled inside plot_all_visualizations)
+        # comparator.plot_ci_auc_vs_reliability(args.dataset, models, viz_dir)
 
     logger.info("\n" + "="*70)
-    logger.info("✅ RANKING COMPARISON COMPLETE!")
+    logger.info(" RANKING COMPARISON COMPLETE!")
     logger.info("="*70)
 
 

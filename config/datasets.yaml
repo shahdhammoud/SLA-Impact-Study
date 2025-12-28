@@ -9,11 +9,17 @@ datasets:
     description: "Example dataset for testing"
     target_column: null  # Will be auto-detected as last column if null
     index_column: null   # Will be auto-detected if null
+  survey:
+    csv_path: "benchmarks_with_ground_truth/csv/survey.csv"
+    txt_path: "benchmarks_with_ground_truth/txt/survey.txt"
+    description: "Survey dataset for full workflow"
+    target_column: null
+    index_column: null
 
 # General dataset processing settings
 processing:
   auto_detect_types: true
   categorical_threshold: 10  # Columns with <= this many unique values treated as categorical
-  missing_value_strategy: "mean"  # Options: mean, median, mode, drop
+  missing_value_strategy: "median"  # Options: mean, median, mode, drop
   test_size: 0.2
   random_state: 42

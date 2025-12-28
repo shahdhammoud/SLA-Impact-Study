@@ -1,7 +1,3 @@
-"""
-Visualization utilities for training losses and rankings.
-"""
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,15 +8,6 @@ import os
 def plot_training_loss(losses: List[float], model_name: str, 
                        save_path: Optional[str] = None, 
                        title: Optional[str] = None) -> None:
-    """
-    Plot training loss over epochs.
-    
-    Args:
-        losses: List of loss values
-        model_name: Name of the model
-        save_path: Path to save the plot (if None, plot is displayed)
-        title: Custom title for the plot
-    """
     if not losses:
         print(f"No training losses to plot for {model_name}")
         return
@@ -32,7 +19,6 @@ def plot_training_loss(losses: List[float], model_name: str,
         plt.plot(epochs, losses, 'b-', linewidth=2, label='Training Loss')
         plt.xlabel('Epoch', fontsize=12)
     else:
-        # For models with single score (GMM, Bayesian Network)
         plt.bar([model_name], losses, color='steelblue')
         plt.ylabel('Score', fontsize=12)
     
@@ -61,14 +47,6 @@ def plot_training_loss(losses: List[float], model_name: str,
 def plot_multiple_training_losses(losses_dict: Dict[str, List[float]], 
                                   save_path: Optional[str] = None,
                                   title: str = "Training Losses Comparison") -> None:
-    """
-    Plot training losses for multiple models.
-    
-    Args:
-        losses_dict: Dictionary mapping model names to loss lists
-        save_path: Path to save the plot
-        title: Title for the plot
-    """
     if not losses_dict:
         print("No training losses to plot")
         return
@@ -104,31 +82,19 @@ def plot_multiple_training_losses(losses_dict: Dict[str, List[float]],
 def plot_model_rankings(rankings_dict: Dict[str, List[Tuple[str, float]]], 
                        save_path: Optional[str] = None,
                        title: str = "Model Rankings Across Structures") -> None:
-    """
-    Plot model rankings across different structure learning algorithms.
-    
-    Args:
-        rankings_dict: Dictionary mapping structure names to rankings
-                      Each ranking is a list of (model_name, score) tuples
-        save_path: Path to save the plot
-        title: Title for the plot
-    """
     if not rankings_dict:
         print("No rankings to plot")
         return
     
-    # Extract all unique models
     all_models = set()
     for rankings in rankings_dict.values():
         all_models.update([model for model, _ in rankings])
     all_models = sorted(list(all_models))
     
-    # Create a matrix of rankings (position for each model under each structure)
     structures = list(rankings_dict.keys())
     n_structures = len(structures)
     n_models = len(all_models)
     
-    # Position matrix (lower position = better rank)
     position_matrix = np.zeros((n_models, n_structures))
     score_matrix = np.zeros((n_models, n_structures))
     
@@ -141,10 +107,8 @@ def plot_model_rankings(rankings_dict: Dict[str, List[Tuple[str, float]]],
             position_matrix[i, j] = model_to_rank.get(model, n_models)
             score_matrix[i, j] = model_to_score.get(model, 0.0)
     
-    # Create subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
-    # Plot 1: Ranking positions (heatmap)
     im1 = ax1.imshow(position_matrix, cmap='RdYlGn_r', aspect='auto')
     ax1.set_xticks(range(n_structures))
     ax1.set_yticks(range(n_models))
@@ -154,7 +118,6 @@ def plot_model_rankings(rankings_dict: Dict[str, List[Tuple[str, float]]],
     ax1.set_xlabel('Structure Learning Algorithm', fontsize=10)
     ax1.set_ylabel('Model', fontsize=10)
     
-    # Add text annotations
     for i in range(n_models):
         for j in range(n_structures):
             text = ax1.text(j, i, f'{int(position_matrix[i, j]) + 1}',
@@ -162,7 +125,6 @@ def plot_model_rankings(rankings_dict: Dict[str, List[Tuple[str, float]]],
     
     plt.colorbar(im1, ax=ax1, label='Rank Position')
     
-    # Plot 2: Scores (bar chart)
     x = np.arange(n_structures)
     width = 0.8 / n_models
     
@@ -199,27 +161,14 @@ def plot_ranking_comparison(baseline_ranking: List[Tuple[str, float]],
                            baseline_name: str = "Ground Truth",
                            comparison_name: str = "Learned Structure",
                            save_path: Optional[str] = None) -> None:
-    """
-    Plot comparison between two rankings.
-    
-    Args:
-        baseline_ranking: Baseline ranking as list of (model, score) tuples
-        comparison_ranking: Comparison ranking as list of (model, score) tuples
-        baseline_name: Name of baseline structure
-        comparison_name: Name of comparison structure
-        save_path: Path to save the plot
-    """
     models = [model for model, _ in baseline_ranking]
     baseline_scores = [score for _, score in baseline_ranking]
     
-    # Reorder comparison scores to match baseline order
     comparison_dict = {model: score for model, score in comparison_ranking}
     comparison_scores = [comparison_dict.get(model, 0.0) for model in models]
     
-    # Create figure
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
-    # Plot 1: Side-by-side bar chart
     x = np.arange(len(models))
     width = 0.35
     
@@ -236,7 +185,6 @@ def plot_ranking_comparison(baseline_ranking: List[Tuple[str, float]],
     ax1.legend()
     ax1.grid(True, alpha=0.3, axis='y')
     
-    # Plot 2: Rank position comparison
     baseline_ranks = list(range(1, len(models) + 1))
     comparison_models = [model for model, _ in comparison_ranking]
     comparison_ranks = [comparison_models.index(model) + 1 if model in comparison_models else len(models) 
@@ -269,25 +217,15 @@ def plot_ranking_comparison(baseline_ranking: List[Tuple[str, float]],
 def plot_consensus_ranking(rankings_dict: Dict[str, List[Tuple[str, float]]],
                           consensus_ranking: List[Tuple[str, float]],
                           save_path: Optional[str] = None) -> None:
-    """
-    Plot consensus ranking vs individual structure rankings.
-    
-    Args:
-        rankings_dict: Dictionary mapping structure names to rankings
-        consensus_ranking: Consensus ranking across all structures
-        save_path: Path to save the plot
-    """
     models = [model for model, _ in consensus_ranking]
     consensus_scores = [score for _, score in consensus_ranking]
     
     fig, ax = plt.subplots(figsize=(12, 7))
     
-    # Plot consensus as bars
     x = np.arange(len(models))
     ax.bar(x, consensus_scores, color='gold', alpha=0.7, label='Consensus', 
           edgecolor='black', linewidth=1.5)
     
-    # Plot individual structure rankings as scatter points
     colors = plt.cm.Set3(np.linspace(0, 1, len(rankings_dict)))
     
     for i, (structure, rankings) in enumerate(rankings_dict.items()):
@@ -318,14 +256,6 @@ def plot_consensus_ranking(rankings_dict: Dict[str, List[Tuple[str, float]]],
 
 
 def plot_gan_losses(losses_dict: Dict[str, list], model_name: str, save_path: Optional[str] = None, title: Optional[str] = None) -> None:
-    """
-    Plot generator and discriminator losses over epochs for GAN models.
-    Args:
-        losses_dict: Dict with keys 'generator' and 'discriminator', values are lists of losses
-        model_name: Name of the model
-        save_path: Path to save the plot (if None, plot is displayed)
-        title: Custom title for the plot
-    """
     gen_losses = losses_dict.get('generator', [])
     disc_losses = losses_dict.get('discriminator', [])
     if not gen_losses or not disc_losses:

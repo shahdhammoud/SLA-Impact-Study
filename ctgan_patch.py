@@ -1,7 +1,6 @@
 from ctgan import CTGAN
 import torch
 
-# Patch CTGAN to record generator and discriminator losses per epoch
 orig_train = CTGAN._train
 
 def patched_train(self, train_data, train_cond, steps_per_epoch):
@@ -19,5 +18,3 @@ def patched_train(self, train_data, train_cond, steps_per_epoch):
     return self
 
 CTGAN._train = patched_train
-print('CTGAN patched to record generator and discriminator losses.')
-
