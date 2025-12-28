@@ -7,9 +7,9 @@ A modular research framework for evaluating how different causal structure learn
 This framework addresses a key research question: How do structural learning algorithms impact the evaluation and ranking of generative models when the true causal structure is unknown?
 
 The methodology:
-1. Train multiple generative models (CTGAN, TabDDPM, GMM, Bayesian Network) on real data
+1. Train multiple generative models (CTGAN, TabDDPM, GMMk) on real data
 2. Generate synthetic data from each model
-3. Learn causal structures from data using various algorithms (PC, GES, NOTEARS, FCI, LiNGAM)
+3. Learn causal structures from data using various algorithms (PC, GES, FCI, cdond)
 4. Evaluate models using CauTabBench methodology with both ground truth and learned structures
 5. Compare how model rankings change across different structure learning methods
 
@@ -55,7 +55,7 @@ The methodology:
 
 ### Prerequisites
 - Python 3.8+
-- CUDA-capable GPU (optional but recommended for TabDDPM and NOTEARS)
+- CUDA-capable GPU (optional but recommended for TabDDPM)
 
 ### Setup
 
@@ -107,17 +107,17 @@ python scripts/03_tune_model.py --dataset alarm --model gmm --trials 50
 # 3. Train models with best parameters
 python scripts/02_train_model.py --dataset alarm --model ctgan --use-best-params
 python scripts/02_train_model.py --dataset alarm --model gmm --use-best-params
-python scripts/02_train_model.py --dataset alarm --model bayesian_network
+
 
 # 4. Generate synthetic data
 python scripts/04_generate_synthetic.py --dataset alarm --model ctgan --n-samples 1000
 python scripts/04_generate_synthetic.py --dataset alarm --model gmm --n-samples 1000
-python scripts/04_generate_synthetic.py --dataset alarm --model bayesian_network --n-samples 1000
+
 
 # 5. Learn structures from synthetic data
 python scripts/05_learn_structure.py --dataset alarm --algorithm pc --data-type synthetic --model ctgan
 python scripts/05_learn_structure.py --dataset alarm --algorithm ges --data-type synthetic --model ctgan
-python scripts/05_learn_structure.py --dataset alarm --algorithm notears --data-type synthetic --model gmm
+
 
 # 6. Evaluate models with different structures
 python scripts/06_evaluate.py --dataset alarm --model ctgan --structure ground_truth
@@ -126,7 +126,7 @@ python scripts/06_evaluate.py --dataset alarm --model gmm --structure ground_tru
 python scripts/06_evaluate.py --dataset alarm --model gmm --structure ges_learned_synthetic_gmm
 
 # 7. Compare rankings across structures
-python scripts/07_compare_rankings.py --dataset alarm --structures ground_truth,pc_learned,ges_learned,notears_learned
+python scripts/07_compare_rankings.py --dataset alarm --structures ground_truth,pc_learned,ges_learned
 ```
 
 ### Quick Start Commands
@@ -138,12 +138,12 @@ for dataset in dataset1 dataset2 dataset3; do
 done
 
 # Train all models on a dataset
-for model in ctgan gmm bayesian_network; do
+for model in ctgan gmm; do
     python scripts/02_train_model.py --dataset alarm --model $model
 done
 
 # Learn structures with all algorithms
-for algo in pc ges notears fci lingam; do
+for algo in pc ges fci lingam; do
     python scripts/05_learn_structure.py --dataset alarm --algorithm $algo --data-type real
 done
 ```
@@ -153,7 +153,7 @@ done
 1. **CTGAN**: Conditional Tabular GAN (uses GPU if available)
 2. **TabDDPM**: Denoising Diffusion Probabilistic Model for tabular data (requires GPU, integration pending)
 3. **GMM**: Gaussian Mixture Model
-4. **Bayesian Network**: Generative Bayesian Network with structure learning
+
 
 ## Supported Structure Learning Algorithms
 
@@ -161,9 +161,7 @@ done
 |-----------|-------------|-------------|---------|
 | **PC** | Peter-Clark constraint-based | No | causal-learn |
 | **GES** | Greedy Equivalence Search | No | causal-learn |
-| **NOTEARS** | Continuous optimization for DAGs | Yes | Custom PyTorch |
 | **FCI** | Fast Causal Inference (handles latent confounders) | No | causal-learn |
-| **LiNGAM** | Linear Non-Gaussian Acyclic Model | No | lingam |
 
 ## Evaluation Methodology
 
@@ -214,7 +212,6 @@ export CUDA_VISIBLE_DEVICES=0
 Models that benefit from GPU:
 - CTGAN: Automatically uses GPU if available
 - TabDDPM: Requires GPU
-- NOTEARS: Can use GPU for acceleration
 
 ## Output Files
 
@@ -262,7 +259,7 @@ After running the complete workflow, you'll have:
 - Solution: Reduce `max_iter` or `max_cond_vars` in algorithm configs
 
 **Issue**: TabDDPM not working
-- Note: TabDDPM integration is pending. Use CTGAN, GMM, or Bayesian Network instead.
+- Note: TabDDPM integration is pending. Use CTGAN, GMM instead.
 
 ## Citation
 
